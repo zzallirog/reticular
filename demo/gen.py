@@ -104,6 +104,10 @@ s2 = (
 for sid, turns in ((S1, s1), (S2, s2)):
     with open(os.path.join(P, sid + ".jsonl"), "w") as fh:
         for row in turns:
+            # the recap engine keys sessions by per-row sessionId (and the
+            # fires plane joins on the same sid) — without it both files
+            # collapse into one "" session
+            row["sessionId"] = sid
             fh.write(json.dumps(row) + "\n")
 
 # ── fire-log: one row per user turn, shape = live schema ──
