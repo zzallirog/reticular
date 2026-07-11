@@ -12,7 +12,7 @@ already built on the oversight."* You set a task; the agent quietly aims at
 the wrong thing; unwinding later costs more than the task did.
 
 With the layer on, the scope-guard core fires **on the first turn**: the
-trigger words are in the prompt, the ~20-token pointer lands next to the task,
+trigger words are in the prompt, the ~50-token pointer lands next to the task,
 and the model names the box before acting. In the demo: *"fix the typo in the
 pricing page header"* → the reply fixes the typo and explicitly declines the
 refactor it was tempted by, listing follow-ups instead.

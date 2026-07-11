@@ -5,7 +5,7 @@
 **A hook-level attention layer for LLM agents — built from your own session logs.**
 
 *The reticular activating system is the brain stem's salience filter: it decides
-which signals wake the cortex. This is that, for an agent: ~20 injected tokens
+which signals wake the cortex. This is that, for an agent: a few dozen injected tokens
 at exactly the turn they matter.*
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
@@ -29,7 +29,8 @@ Two things follow from putting the layer at the hook:
   wrong way, the relevant core fires *now* — not five messages later, after
   legacy has been built on the oversight.
 - **It solves lost-in-the-middle by recency**, the one position LLMs reliably
-  attend to. The injection is ~20 tokens; your context budget doesn't notice.
+  attend to. The injection is ~50 tokens per fired core; your context budget
+  doesn't notice.
 
 The cores are **not shipped — they are grown**. A one-pass installer reads your
 Claude Code session logs, emerges the facets of how *you* work (with verbatim
@@ -112,7 +113,7 @@ Twelve days of live fire-log, 112 sessions, 692 substantive turns:
 | number | what it says |
 |---|---|
 | 227 / 692 turns fired (33%) | the lexicon leg carries the layer; dense backstop pays only on misses |
-| 314 action-side fires | the tool-call parser: 146 edit-without-read, 115 substrate-write checks, 24 wrong-shell-idiom |
+| 286 action-side fires | the tool-call parser: 146 edit-without-read, 115 substrate-write checks, 24 wrong-shell-idiom, 1 error-loop break |
 | 651 judged verdicts: **32% genuine · 17% partial · 51% echo** | the honest number that forced the tune loop |
 | 76 lexicon-hole candidates, 26 anti-trigger candidates | mined mechanically from the same log — tuning is data, not vibes |
 
@@ -137,7 +138,7 @@ More screenshots: [docs/GALLERY.md](docs/GALLERY.md).
 ```
 your logs ──slim──▶ pattern legs (Sonnet ×2) ──▶ emerge (Opus) ──▶ cores/ + lexicon matrix
                                                                         │
-prompt ──▶ [attest hook] ── lexical leg + grammar direction axis ──▶ ~20-token core pointer
+prompt ──▶ [attest hook] ── lexical leg + grammar direction axis ──▶ ~50-token core pointer
 reply  ──▶ [land hook]  ── same lexicon over the reply ──▶ fire-log.acted_on + witness spans
 tools  ──▶ [act hook]   ── deterministic parser over tool-calls ──▶ mode notes (advisory)
 start  ──▶ [floor hook] ── disposition cores injected as bodies, not directives
