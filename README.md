@@ -184,7 +184,8 @@ Design rules the repo holds to:
 - The direction axis (act/read grammar) ships with RU+EN carriers; other
   languages need a carrier lexicon (the axis itself is language-invariant).
 - Reflect's narrator (optional prose over the dashboards) needs a local
-  ollama model or a Claude CLI subscription; without it you get numbers and
+  ollama model or a Claude CLI subscription (one pass:
+  `python3 reflect/bin/bake.py`); without either you get numbers and
   template prose — nothing breaks.
 - Hooks are Claude Code hook-API shaped. The layer's ideas port to any
   harness with prompt/tool/stop hooks; the code here doesn't try to.
