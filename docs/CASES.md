@@ -5,9 +5,11 @@ synthetic demo corpus (`demo/`); the mechanics and the numbers are real.
 
 ## 1 · Drift visible on turn one
 
-**The pain that started this repo.** You set a task; the agent quietly aims at
-the wrong thing; you find out five messages later, after code has been built
-on the misread — now it's legacy, and unwinding costs more than the task did.
+**The pain that started this repo** — verbatim, from the colleague whose
+request produced the portable kit: *"I set a task. If it's looking the wrong
+way, I want to see it immediately — not five messages later, with legacy
+already built on the oversight."* You set a task; the agent quietly aims at
+the wrong thing; unwinding later costs more than the task did.
 
 With the layer on, the scope-guard core fires **on the first turn**: the
 trigger words are in the prompt, the ~20-token pointer lands next to the task,
@@ -63,3 +65,64 @@ Two safety rules keep this loop honest:
 - the recursion is never closed: the machine proposes triggers and
   anti-triggers, a human commits them. A lexicon that feeds its own oracle
   converges on noise, 51% of which we have already met.
+
+## 5 · The number that looked like a bug — and the gatekeeper that said no
+
+The 51% had a second life. More than once, an assistant looking at the
+dashboard proposed to *fix* it — narrow the triggers, mute the hot cores,
+make the number respectable. It sounded like diligence.
+
+It would have killed the layer. Disposition-class facets are **supposed to run
+hot** — they apply to nearly every substantive turn; that is what makes them
+dispositions. Their echo is not noise in the matrix, it is the reason they
+live in the session-start floor instead of the matrix. Tune the lexicon until
+the global echo number is pretty, and the layer stops firing exactly where it
+was earned.
+
+Had the owner been more trusting, one agreeable "sure, let's clean that up"
+would have shipped the damage. That incident is why the tune loop now has a
+**gatekeeper**: `tools/rebalance_check.py` runs before any lexicon surgery and
+answers with counted numbers — did per-core proportions actually drift beyond
+tolerance, is echo high *on a situation core* (a real problem) or on a
+disposition (by design), did a disposition leak into the matrix, is the tune
+candidate pool judged or raw. The rule it enforces is one sentence:
+
+> **You may not tune a number you haven't decomposed by core class.**
+
+---
+
+# Reflect-side cases
+
+The mirror plane has its own origin incidents — different failure surface,
+same instinct: trust the trace, not the claim.
+
+## 6 · "319 sessions" — the number that was narrated
+
+A model was asked to summarize activity over a corpus of session logs. It
+reported 319 sessions. The counted number was 139. Nothing malicious — just a
+model doing what models do with numbers: producing something *shaped* like the
+answer.
+
+That one incident became the architecture of the whole Reflect plane: **no
+number ever passes through a model's paraphrase.** Prose may describe the
+shape of your work; every figure on screen is counted by a log walk and
+carries its provenance. The narrator writes around the numbers, never through
+them. If you see a count in reticular, a script counted it.
+
+## 7 · The layer we measured and refused to build
+
+The tempting middle of the stack was a semantic layer: fire facets by
+embedding similarity instead of brittle regex. It was measured twice, both
+times against a null:
+
+- abstract facet-matching by embeddings: top-1 **0.125** — exactly chance;
+- a lexical classifier over prompt text: **44.7%**, *under* the 45.2%
+  majority-class baseline (while comfortably above the permutation null —
+  above noise, below usefulness).
+
+So the dense middle didn't ship. The rule that survived: don't build the
+fragile middle layer unless the layer above measurably misses *and* the middle
+measurably beats it. The demo, the hooks and the numbers in this repo all run
+on the boring layer that won: your own words, exact-matched, with a judge on
+top. A repo that shows you what it declined to build is telling you the same
+thing its dashboards do: the claim follows the count.

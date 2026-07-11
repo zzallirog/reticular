@@ -36,6 +36,29 @@ Claude Code session logs, emerges the facets of how *you* work (with verbatim
 anchors from your own prose), builds the lexicon matrix, wires four hooks, and
 then verifies itself against held-out prompts.
 
+Under the hood it is a **reliability ladder**, each layer earning its place by
+measurement, not taste:
+
+1. **Floor** — the disposition rulebook (a few thousand tokens, under 1% of a
+   modern context window) injected at session start as *bodies, not
+   directives*. Deterministic: always there, never a retrieval roll.
+2. **Lexicon** — your native trigger words over the prompt. The word is
+   either there or it isn't; this layer carries the system.
+3. **Dense backstop** — embeddings, fragile by measurement, paying only where
+   the words are absent.
+4. **LLM judge** — expensive, the only layer that reads meaning; used for
+   verdicts, never for counting.
+
+The facets themselves are mostly an **activation layer over a substrate you
+already own**: months of corrections, post-mortems and feedback notes that
+normally sleep in a memory index and are used by nothing. The harness doesn't
+write a new rulebook — it wakes the right page of the old one at the right
+turn. Which is also why the layout matters: in an [agent-atlas](https://github.com/zzallirog/agent-atlas)-style
+vault, *moving projects around breaks nothing* — files are modules, positions
+are free — but every rename toward how you actually speak feeds the index the
+matrix latches onto. Reorganizing your memory is not housekeeping here; it is
+tuning the attention layer.
+
 ## The pair: act + reflect
 
 `reticular` is two planes over the same logs:
@@ -44,6 +67,14 @@ then verifies itself against held-out prompts.
 |---|---|---|
 | **harness** (`harness/`) | 4 hooks: floor (session start), attest (prompt → core fires), act (tool-call parser: edit-without-read, error loops, substrate writes), land (what actually landed in the reply) | live, in the moment |
 | **Reflect** (`reflect/`, `localhost:8899`) | sessions dashboard + **Fires plane**: every fire counted, judged genuine/echo, false-fire spans traced to the exact word | retrospective |
+
+Reflect is not a stats page — it is the **representation of the agent's
+attention**: what it worked with, in what register (a fast blast of edits vs a
+deep audit session — different genres want different things surfaced), and a
+session-level attention funnel for auditing: prompt → what fired → what
+actually landed → what the judge said. The same funnel is the substrate for
+future analytics; today it answers one question honestly: *was the waking
+real?*
 
 ![the Fires plane over the demo corpus](docs/shots/fires.png)
 
@@ -55,7 +86,8 @@ from logs, none narrated by a model.*
 ## Quick start
 
 ```sh
-# demo — synthetic corpus, no logs needed (Python 3.10+, fastapi+uvicorn)
+# demo — synthetic corpus, no logs needed
+# needs Python >= 3.10 (the hooks are stdlib; the server wants fastapi+uvicorn)
 git clone https://github.com/zzallirog/reticular && cd reticular
 pip install -r requirements.txt
 sh demo/run.sh          # → http://127.0.0.1:8899/fires
@@ -89,9 +121,16 @@ that scans replies is biased by its own words (meta-talk about the harness
 lights the harness). The judge layer separates word-as-topic from
 word-as-act, and the false-fire spans become anti-triggers. Disposition-class
 cores are *supposed* to apply almost every turn — they live in the session-start
-floor, not in the matrix, precisely so they can't pollute these numbers.
+floor, not in the matrix, precisely so they can't pollute these numbers. And
+because "fix the 51%" is exactly the kind of helpful suggestion that would
+kill the layer, the tune loop has a **gatekeeper**
+(`harness/tools/rebalance_check.py`): no lexicon surgery until the number is
+decomposed by core class and the proportions are checked against a saved
+baseline.
 
-Four cases from live use, retold on the demo corpus: [docs/CASES.md](docs/CASES.md).
+Seven cases from live use, retold on the demo corpus: [docs/CASES.md](docs/CASES.md).
+The full origin story, traced from the vault: [docs/STORY.md](docs/STORY.md).
+More screenshots: [docs/GALLERY.md](docs/GALLERY.md).
 
 ## How it works (one screen)
 
@@ -132,6 +171,13 @@ Design rules the repo holds to:
   The method is the claim: the installer verifies against *your* held-out
   prompts and prints *your* numbers. If the signal isn't there, you get an
   honest zero.
+- The matrix is **subjective by construction** — it encodes how *you* frame
+  situations, folded from your dispositions and your lexicon. It is not an
+  objective classifier and does not pretend to be one; the same word may
+  rightly mean different things in different vaults. That's the feature.
+- Repeated fires decay (anti-wallpaper): a core pointed several turns in a
+  row is suppressed until it rests. This trades a small miss risk for not
+  becoming background noise the model learns to ignore.
 - The judge is an LLM, not human labels; `anno_src` travels with every verdict
   so downstream analysis can tell them apart.
 - The direction axis (act/read grammar) ships with RU+EN carriers; other
@@ -152,8 +198,10 @@ harness/            the buildable layer: bootstrap.sh, 4 hooks, emerge workflows
                     casebook tools, TUNE.md (false-fire tracing), INSTALL-AGENT.md
 reflect/            FastAPI server + engine: sessions plane (/) and fires plane (/fires)
 demo/               synthetic corpus generator + run.sh (no real logs needed)
-docs/CASES.md       four live-caught cases, retold on the demo corpus
-docs/shots/         screenshots used above
+docs/CASES.md       seven live-caught cases, retold on the demo corpus
+docs/STORY.md       the origin narrative, traced from the vault
+docs/GALLERY.md     screenshots with commentary
+docs/shots/         raw screenshots
 ```
 
 </details>

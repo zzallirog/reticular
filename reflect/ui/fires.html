@@ -56,7 +56,8 @@ and where the lexicon lies. Every number is counted from logs — none narrated.
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let FILTER = {verdict: "", core: ""};
+const _q = new URLSearchParams(location.search);
+let FILTER = {verdict: _q.get("verdict") || "", core: _q.get("core") || ""};
 
 async function j(u){ const r = await fetch(u); return r.json(); }
 

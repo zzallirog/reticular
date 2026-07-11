@@ -35,6 +35,14 @@ python3 tools/casebook_harvest.py          # arrival-miss × genuine → harvest
 python3 tools/casebook_sidecases.py        # echo-спаны → anti-trigger-candidates.jsonl
                                            # + exemplars.jsonl (few-shot банк судьи)
 
+# 5.5 ГЕЙТКИПЕР — перед ЛЮБОЙ правкой матрицы (обязательный шаг):
+python3 tools/rebalance_check.py          # пропорции vs снапшот, echo ПО ЯДРАМ,
+                                          # утечка диспозиций в матрицу, гигиена
+#    Правило: нельзя тюнить число, не разложенное по классам ядер.
+#    Echo высокий на СИТУАЦИЯ-ядре = проблема; на диспозиции = by design, НЕ трогать.
+#    Живой прецедент: «почини 51%» чуть не убил слой — CASES.md §5.
+#    После осознанной правки: rebalance_check.py --save (новый бейзлайн).
+
 # 6. ЧЕЛОВЕК смотрит кандидатов и правит core-triggers.txt руками:
 #    harvest-кандидат → добавить слово/фразу в regex ядра;
 #    анти-триггер     → сузить regex (negative lookahead / убрать слово).
