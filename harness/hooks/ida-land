@@ -21,8 +21,10 @@ def read(p):
     except OSError: return ""
 
 def last_turn_reply(tpath):
-    """Текст assistant-блоков ПОСЛЕ последнего реального юзер-хода (не tool_result, не meta)."""
-    buf = []
+    """(reply, last_user): текст assistant-блоков ПОСЛЕ последнего реального
+    юзер-хода (не tool_result, не meta) + текст самого этого юзер-хода —
+    он нужен как сверка, что последняя строка fire-log = ЭТОТ ход."""
+    buf, last_user = [], ""
     for line in read(tpath).splitlines():
         try: row = json.loads(line)
         except Exception: continue
@@ -32,14 +34,17 @@ def last_turn_reply(tpath):
         c = msg.get("content")
         if t == "user":
             if isinstance(c, str) and c.strip():
-                buf = []
-            elif isinstance(c, list) and any(b.get("type") == "text" for b in c if isinstance(b, dict)):
-                buf = []
+                buf = []; last_user = c
+            elif isinstance(c, list):
+                texts = [b.get("text", "") for b in c
+                         if isinstance(b, dict) and b.get("type") == "text" and b.get("text")]
+                if texts:
+                    buf = []; last_user = "\n".join(texts)
         elif t == "assistant" and isinstance(c, list):
             for b in c:
                 if isinstance(b, dict) and b.get("type") == "text" and b.get("text"):
                     buf.append(b["text"])
-    return "\n".join(buf)
+    return "\n".join(buf), last_user
 
 def lex_scan(text):
     """hits + witness: НЕ выбрасываем свидетеля — совпавшие спаны едут в кейс
@@ -71,7 +76,7 @@ def main():
     tpath = data.get("transcript_path") or ""
     if not sid or not os.path.exists(tpath) or not os.path.exists(FLOG): return
 
-    reply = last_turn_reply(tpath)
+    reply, last_user = last_turn_reply(tpath)
     if len(reply.split()) < 3: return                # пустой/тривиальный ход — не трогаем канал
     acted, witness = lex_scan(reply)
 
@@ -82,6 +87,12 @@ def main():
         try: rec = json.loads(lines[i])
         except Exception: continue
         if rec.get("sid") != sid: continue
+        # сверка хода: attest пишет prompt[:160] — если последний юзер-ход
+        # транскрипта НЕ начинается с него, этот ход строки не оставил
+        # (промпт <3 слов) и последняя строка = ПРОШЛЫЙ ход. Перезапись
+        # чужого хода = контаминация датасета; лучше пропустить лендинг.
+        if rec.get("prompt") and not last_user.startswith(rec["prompt"]):
+            return
         if rec.get("acted_on") is not None and rec.get("acted_src") != SRC:
             return                                   # human-label — не перезаписывать
         rec["acted_on"] = acted
