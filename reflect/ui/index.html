@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reflect — reticular</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%23D97757'/%3E%3C/svg%3E">
+<style>
+/* ============ instrument tokens — chrome is metallic, data stays flat ==== */
+:root{
+  --bg:#191713; --panel-2:#12100D; --line:#3A352B;
+  --edge-hi:rgba(255,255,255,.055); /* machined top edge on every plate */
+  --ink:#ECE4D4; --ink-2:#B2A893; --ink-3:#837962;
+  --accent:#D97757; --accent-hi:#F2A984;          /* chrome accents (text) */
+  --local:#C96442; --remote:#4E92C2; --err:#D14B44;   /* data inks — validated */
+  --serif:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:ui-monospace,'JetBrains Mono','Cascadia Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{color-scheme:dark}
+body{background:
+  radial-gradient(1200px 500px at 50% -10%, #201D17 0%, var(--bg) 60%);
+  color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1140px;margin:0 auto;padding:44px 28px 90px;
+  /* the drawer lands first as an overlay; the body follows UNDER it a beat
+     later — two clocks, no blur (asked-for feel, keep both timings apart) */
+  transition:transform .55s cubic-bezier(.22,.61,.36,1) .1s}
+body.shifted .wrap{transform:translateX(-52px)}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* plate: the one metallic move, reused everywhere */
+.plate{background:linear-gradient(180deg,#26221B,#1E1B16);
+  border:1px solid var(--line);border-radius:10px;
+  box-shadow:inset 0 1px 0 var(--edge-hi),0 1px 3px rgba(0,0,0,.35)}
+
+/* ---------------- header ---------------- */
+header{display:flex;justify-content:space-between;align-items:flex-end;
+  gap:18px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.eyebrow{font:500 11px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:9px}
+h1{font:400 38px/1 var(--serif);letter-spacing:.01em}
+h1 em{font-style:italic;color:var(--accent)}
+.window{font:12px var(--mono);color:var(--ink-2);text-align:right}
+.window b{color:var(--ink)}
+
+.controls{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.ctl{display:flex;gap:4px;align-items:center}
+.ctl .lab{font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin-right:6px}
+.chipbtn{font:12px var(--mono);color:var(--ink-2);cursor:pointer;
+  background:linear-gradient(180deg,#242019,#1D1A15);
+  border:1px solid var(--line);border-radius:99px;padding:4px 11px;
+  box-shadow:inset 0 1px 0 var(--edge-hi)}
+.chipbtn:hover{border-color:var(--accent);color:var(--ink)}
+.chipbtn.on{border-color:var(--accent);color:var(--accent-hi);
+  background:color-mix(in oklab,var(--accent) 13%,#1D1A15)}
+.chipbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#q{font:12px var(--mono);color:var(--ink);background:var(--panel-2);
+  border:1px solid var(--line);border-radius:8px;padding:6px 11px;width:230px;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.4)}
+#q::placeholder{color:var(--ink-3)}
+#q:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ctl.search{margin-left:auto}
+
+/* coverage — the honest per-host answer to "what does this chip even see" */
+.coverage{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;
+  font:11px var(--mono);color:var(--ink-3)}
+.coverage b{color:var(--ink-2);font-weight:500}
+.coverage .warn{color:var(--accent-hi)}
+
+/* ---------------- engraved section rails ---------------- */
+section{margin-top:46px}
+h2{display:flex;align-items:center;gap:12px;font:500 11px/1 var(--sans);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:16px}
+h2::after{content:"";flex:1;height:1px;
+  background:linear-gradient(90deg,var(--line),transparent)}
+h2 .hint{letter-spacing:.04em;text-transform:none;color:var(--ink-3);font-weight:400}
+h2 .roll{font:11px var(--mono);color:var(--ink-2);cursor:pointer;
+  background:linear-gradient(180deg,#242019,#1D1A15);letter-spacing:0;
+  text-transform:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;
+  box-shadow:inset 0 1px 0 var(--edge-hi)}
+h2 .roll:hover{border-color:var(--accent);color:var(--ink)}
+h2 .roll:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* legend for the two machines — identity is never color alone */
+.legend{display:flex;gap:14px;align-items:center;font:11px var(--mono);color:var(--ink-2)}
+.legend i{width:9px;height:9px;border-radius:2px;display:inline-block;
+  vertical-align:-1px;margin-right:5px}
+.legend .local i{background:var(--local)} .legend .remote i{background:var(--remote)}
+
+/* ---------------- pulse strip (signature) ---------------- */
+.pulse{padding:16px 18px 10px;overflow-x:auto}
+.pulse-bars{display:flex;align-items:flex-end;gap:3px;height:76px;min-width:560px}
+.pday{flex:1;min-width:5px;display:flex;flex-direction:column;justify-content:flex-end;
+  gap:2px;height:100%;background:none;border:0;padding:0;cursor:pointer;border-radius:2px}
+.pday:hover{outline:1px solid var(--accent-hi)}
+.pday:focus-visible{outline:2px solid var(--accent)}
+.pday i{display:block;border-radius:1.5px;min-height:0}
+.pday .a{background:var(--local)} .pday .m{background:var(--remote)}
+.pulse-x{display:flex;gap:3px;min-width:560px;margin-top:6px}
+.pulse-x span{flex:1;min-width:5px;font:10px var(--mono);color:var(--ink-3);
+  overflow:visible;white-space:nowrap}
+.pulse-cap{display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+  font:11px var(--mono);color:var(--ink-3);margin-top:10px;flex-wrap:wrap}
+
+/* ---------------- narrative + numbers rail ---------------- */
+.lede{display:grid;grid-template-columns:7fr 5fr;gap:28px;margin-top:36px}
+.narrative{padding-left:20px;border-left:2px solid var(--accent)}
+.narrative p{font:400 20px/1.7 var(--serif);max-width:60ch}
+.prov{display:flex;gap:10px;align-items:baseline;margin:14px 0 0 20px;
+  font:11px var(--mono);color:var(--ink-3)}
+.prov .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);
+  flex:none;align-self:center}
+.prov .warn{color:var(--accent-hi)}
+.v{font-family:var(--mono);font-variant-numeric:tabular-nums;
+  border-bottom:1px dotted color-mix(in oklab,var(--accent) 65%,transparent);cursor:help}
+
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{padding:13px 15px;text-align:left}
+.tile .n{font:400 24px/1.15 var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.tile .l{font:11.5px var(--sans);color:var(--ink-2);margin-top:4px}
+.tile .s{font:10.5px var(--mono);color:var(--ink-3);margin-top:3px}
+.tile.click{cursor:pointer}
+.tile.click:hover{border-color:var(--accent)}
+.tile.click:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------------- heatmap ---------------- */
+.heat{padding:18px 18px 12px;overflow-x:auto}
+.heat-grid{display:grid;grid-template-columns:34px repeat(24,1fr) 46px;gap:2px;min-width:700px}
+.heat-cell{height:16px;border-radius:3px;background:var(--panel-2);border:0;padding:0;cursor:pointer}
+.heat-cell:hover{outline:1px solid var(--accent-hi)}
+.heat-cell:focus-visible{outline:2px solid var(--accent)}
+.heat-cell.peak{outline:2px solid var(--accent-hi);outline-offset:1px}
+.heat-lab{font:10px var(--mono);color:var(--ink-3);align-self:center}
+.heat-tot{font:10px var(--mono);color:var(--ink-3);align-self:center;text-align:right}
+.heat-hours{display:grid;grid-template-columns:34px repeat(24,1fr) 46px;gap:2px;
+  margin-top:6px;min-width:700px}
+.heat-hours span{font:10px var(--mono);color:var(--ink-3)}
+.heat-cap{font:11px/1.5 var(--mono);color:var(--ink-3);margin-top:10px;max-width:72ch}
+.heat-cap b{color:var(--ink-2)}
+details.alt{margin-top:10px}
+details.alt summary{font:11px var(--mono);color:var(--ink-3);cursor:pointer}
+details.alt table{font:12px var(--mono);color:var(--ink-2);border-collapse:collapse;margin-top:8px}
+details.alt td,details.alt th{padding:2px 10px 2px 0;text-align:left;font-weight:400}
+
+/* ---------------- split zone: topics | what the agent ran ---------------- */
+.split{display:grid;grid-template-columns:7fr 5fr;gap:28px}
+.topic{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;
+  padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px}
+.topic:hover{background:rgba(255,255,255,.025)}
+.topic:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.topic:last-of-type{border-bottom:0}
+.topic .name{font:14.5px var(--sans);color:var(--ink)}
+.topic .name .mut{color:var(--ink-3)}
+.topic .blurb{font:12px var(--sans);color:var(--ink-3);margin-top:2px;max-width:56ch}
+.topic .bar{display:flex;gap:2px;height:6px;margin-top:7px}
+.topic .bar i{border-radius:3px;min-width:2px}
+.topic .bar .a{background:var(--local)} .topic .bar .m{background:var(--remote)}
+.topic .meta{font:10.5px var(--mono);color:var(--ink-3);margin-top:6px}
+.topic .side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.topic .pct{font:13px var(--mono);color:var(--ink-2);text-align:right}
+.spark{display:flex;gap:2px;align-items:flex-end;height:22px}
+.spark i{width:5px;border-radius:1.5px 1.5px 0 0;display:block;
+  background:color-mix(in oklab,var(--local) 55%,var(--panel-2))}
+.spark i.hot{background:var(--local)}
+.drawer-note{font:12px var(--sans);color:var(--ink-3);margin-top:12px}
+
+.ranrow{display:grid;grid-template-columns:112px 1fr 76px;gap:10px;align-items:center;
+  padding:6px 2px}
+.ranrow .t{font:12px var(--mono);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.ranrow .b{height:6px;border-radius:3px;background:var(--local);min-width:2px}
+.ranrow .c{font:12px var(--mono);color:var(--ink-3);text-align:right}
+.modelchips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.mchip{font:11px var(--mono);color:var(--ink-2);border:1px solid var(--line);
+  border-radius:99px;padding:4px 10px;background:var(--panel-2)}
+.mchip b{color:var(--ink)}
+.subh{font:500 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3);margin:18px 0 8px}
+.subh:first-child{margin-top:0}
+
+/* ---------------- where it hurt ---------------- */
+.hurt{display:grid;grid-template-columns:5fr 7fr;gap:28px}
+.hurt-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start}
+.tile .n .err{color:var(--err)}
+.streak{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  padding:8px 4px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px}
+.streak:hover{background:rgba(255,255,255,.025)}
+.streak:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.streak:last-of-type{border-bottom:0}
+.streak .x{font:13px var(--mono);color:var(--err)}
+.streak .w{font:12.5px var(--sans);color:var(--ink-2)}
+.streak .sid{font:11px var(--mono);color:var(--ink-3)}
+.churn-row{display:grid;grid-template-columns:minmax(120px,220px) 1fr 104px;gap:10px;
+  align-items:center;padding:6px 2px}
+.churn-row .f{font:12px var(--mono);color:var(--ink-2);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.churn-row .b{height:6px;border-radius:3px;background:var(--local);min-width:2px}
+.churn-row .c{font:11px var(--mono);color:var(--ink-3);text-align:right}
+.empty-note{font:12px var(--mono);color:var(--ink-3);padding:8px 0}
+
+/* ---------------- arcs ---------------- */
+.arcs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.arc{padding:14px 16px;cursor:pointer;text-align:left}
+.arc:hover{border-color:var(--accent)}
+.arc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.arc .name{font:400 17px/1.3 var(--serif)}
+.arc .meta{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.chip{font:10px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 7px;border-radius:99px;border:1px solid var(--line);color:var(--ink-2)}
+.chip.sustained{border-color:color-mix(in oklab,var(--accent) 50%,transparent);color:var(--accent-hi)}
+.arc .stats{font:11px var(--mono);color:var(--ink-3)}
+.arc .outcome{font:13px var(--sans);color:var(--ink-2);margin-top:8px;max-width:52ch}
+.arc .fact{border-bottom:1px dotted color-mix(in oklab,var(--accent) 55%,transparent);cursor:help}
+.arc .bankn{font:11px var(--mono);color:var(--ink-3)}
+
+/* ---------------- skills ---------------- */
+.skills{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.skill{padding:16px 18px}
+.skill .k{font:500 11px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:8px}
+.skill .m{font:13px var(--mono);color:var(--ink);margin-bottom:8px}
+.skill .h{font:400 15.5px/1.4 var(--serif);color:var(--ink)}
+.skill .d{font:13px var(--sans);color:var(--ink-2);margin-top:6px}
+
+footer{margin-top:52px;padding-top:16px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  font:11px var(--mono);color:var(--ink-3);flex-wrap:wrap}
+footer .fr{display:flex;gap:10px;align-items:center}
+footer button,footer a{font:11px var(--mono);color:var(--ink-2);background:none;
+  border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;
+  text-decoration:none}
+footer button:hover,footer a:hover{border-color:var(--accent);color:var(--ink)}
+footer button:focus-visible,footer a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------------- drawer — where every click lands ---------------- */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:8}
+#drawer{position:fixed;top:0;right:-440px;width:420px;max-width:94vw;height:100vh;
+  background:var(--panel-2);border-left:1px solid var(--line);z-index:9;
+  padding:22px 20px;overflow-y:auto;transition:right .22s ease;
+  box-shadow:inset 1px 0 0 var(--edge-hi)}
+#drawer.open{right:0}
+#scrim.open{display:block}
+#drawer .d-eyebrow{font:10px var(--mono);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3)}
+#drawer h3{font:400 20px/1.3 var(--serif);margin:6px 48px 2px 0;overflow-wrap:anywhere}
+#drawer .d-sub{font:12px var(--sans);color:var(--ink-2);margin-bottom:16px}
+#drawer .close,#drawer .back{position:absolute;top:16px;font:14px var(--mono);
+  color:var(--ink-3);background:none;border:1px solid var(--line);border-radius:6px;
+  width:28px;height:28px;cursor:pointer}
+#drawer .close{right:16px}
+#drawer .back{right:52px}
+#drawer .close:hover,#drawer .back:hover{color:var(--ink);border-color:var(--accent)}
+#drawer .close:focus-visible,#drawer .back:focus-visible{outline:2px solid var(--accent)}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:10px 2px;
+  border-bottom:1px solid var(--line);border-radius:4px}
+.row.click{cursor:pointer}
+.row.click:hover{background:rgba(255,255,255,.03)}
+.row.click:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.row .l1{font:13px var(--mono);color:var(--ink)}
+.row .lt{font:12px var(--sans);color:var(--ink-2);margin-top:2px;max-width:38ch;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .l2{font:11px var(--mono);color:var(--ink-3);margin-top:2px}
+.row .r{font:13px var(--mono);color:var(--ink-2);text-align:right}
+.row .host{padding:1px 6px;border:1px solid var(--line);border-radius:99px;font-size:10px}
+.row .host.remote{color:var(--remote);border-color:color-mix(in oklab,var(--remote) 45%,transparent)}
+.row .host.local{color:var(--accent-hi);border-color:color-mix(in oklab,var(--accent) 45%,transparent)}
+.row .errn{color:var(--err)}
+.d-empty{font:12px var(--mono);color:var(--ink-3);padding:20px 0}
+.d-kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 14px}
+.d-kv .kv{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:
+  linear-gradient(180deg,#1B1814,#161310)}
+.d-kv .kv .n{font:16px var(--mono);color:var(--ink)}
+.d-kv .kv .l{font:10.5px var(--sans);color:var(--ink-3);margin-top:2px}
+.d-quote{font:13px/1.5 var(--serif);color:var(--ink-2);border-left:2px solid var(--line);
+  padding-left:10px;margin:10px 0 4px}
+
+#tip{position:fixed;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:6px;padding:6px 9px;font:11px var(--mono);color:var(--ink);
+  display:none;z-index:11;max-width:320px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+
+@media (max-width:940px){.lede,.split,.hurt{grid-template-columns:1fr}
+  .ctl.search{margin-left:0}#q{width:100%}}
+@media (max-width:640px){.arcs,.skills,.tiles,.hurt-tiles{grid-template-columns:1fr}
+  .narrative p{font-size:17px}h1{font-size:32px}}
+@media (prefers-reduced-motion:reduce){#drawer,.wrap{transition:none}}
+@media (prefers-reduced-motion:no-preference){
+  .lede,.pulse,.heat{animation:rise .5s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+}
+.loading{color:var(--ink-3);font:14px var(--mono);padding:60px 0}
+.loading code{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app" class="loading">reading the logs…</div>
+</div>
+<aside id="drawer" aria-label="details"></aside>
+<div id="scrim"></div>
+<div id="tip"></div>
+<script>
+const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DOW_FULL = {Mon:"Monday",Tue:"Tuesday",Wed:"Wednesday",Thu:"Thursday",
+  Fri:"Friday",Sat:"Saturday",Sun:"Sunday"};
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const esc = s => String(s ?? "").replace(/[&<>"]/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+// signature: a counted number — title carries provenance, prose may not repeat it.
+const v = (val, src) => `<span class="v" title="${esc(src)}">${esc(val)}</span>`;
+const hourLabel = h => h == null ? "—" : String(h).padStart(2,"0") + ":00";
+const fmtDay = iso => { const [y,m,d] = iso.split("-").map(Number);
+  return `${MON[m-1]} ${d}`; };
+const n = x => (x ?? 0).toLocaleString();
+
+// view state — the period/host chips drive real engine recomputes
+const view = { months: 0, host: "all" };
+const PERIODS = [[0,"all"],[1,"1m"],[3,"3m"],[6,"6m"],[12,"12m"]];
+const HOSTS = [["all","both"],["local","local"],["remote","remote"]];
+const PERIOD_LABEL = {0:"all time",1:"the last month",3:"the last 3 months",
+  6:"the last 6 months",12:"the last 12 months"};
+const PERIOD_TITLE = {0:"All time",1:"The month",3:"The quarter",
+  6:"Six months",12:"The year"};
+const HOST_LABEL = {all:"both machines",local:"local",remote:"remote"};
+const framing = () => ({
+  eyebrow: `reticular · ${HOST_LABEL[view.host] ?? view.host} · ${PERIOD_LABEL[view.months] ?? view.months + " months"}`,
+  periodTitle: PERIOD_TITLE[view.months] ?? `${view.months} months`,
+  hostSuffix: view.host === "all" ? "" : ` — ${HOST_LABEL[view.host]} only`,
+});
+let DATA = null;   // last snapshot, so tile re-rolls don't refetch
+let rollN = 0;     // manual re-rolls on top of the daily seed
+const LEGEND = `<span class="legend"><span class="local"><i></i>local</span>
+  <span class="remote"><i></i>remote</span></span>`;
+
+/* ---------------- drawer (stacked: list -> session detail) ---------------- */
+const drawer = document.getElementById("drawer");
+const scrim = document.getElementById("scrim");
+let dstack = [];
+function renderDrawer(){
+  const top = dstack[dstack.length - 1];
+  drawer.innerHTML = `
+    ${dstack.length > 1 ? `<button class="back" aria-label="back">‹</button>` : ""}
+    <button class="close" aria-label="close">✕</button>
+    <div class="d-eyebrow">${esc(top.eyebrow)}</div>
+    <h3>${esc(top.title)}</h3>
+    <div class="d-sub">${top.sub}</div>
+    ${top.body}`;
+  drawer.querySelector(".close").onclick = closeDrawer;
+  const back = drawer.querySelector(".back");
+  if (back) back.onclick = () => { dstack.pop(); renderDrawer(); };
+  (back || drawer.querySelector(".close")).focus();
+}
+function openDrawer(eyebrow, title, sub, body, push){
+  if (!push) dstack = [];
+  dstack.push({eyebrow, title, sub, body});
+  drawer.classList.add("open"); scrim.classList.add("open");
+  document.body.classList.add("shifted");
+  renderDrawer();
+}
+function closeDrawer(){ drawer.classList.remove("open");
+  scrim.classList.remove("open"); document.body.classList.remove("shifted");
+  dstack = []; }
+scrim.onclick = closeDrawer;
+addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+// one delegated wiring for everything that renders inside the drawer
+function delegated(e){
+  const sess = e.target.closest("[data-sid]");
+  if (sess){ drillSession(sess.dataset.sid, true); return; }
+  const day = e.target.closest("[data-day]");
+  if (day){ drillDay(day.dataset.day, true); return; }
+}
+drawer.addEventListener("click", delegated);
+drawer.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " "){
+    if (e.target.closest("[data-sid],[data-day]")){ e.preventDefault(); delegated(e); }
+  }
+});
+
+function sessionRows(rows, badge){
+  if (!rows.length) return `<div class="d-empty">no sessions in this view</div>`;
+  return rows.map(r => `
+    <div class="row click" tabindex="0" role="button" data-sid="${esc(r.sid)}">
+      <div>
+        <div class="l1">${esc(r.sid)} <span class="host ${esc(r.host)}">${esc(r.host === "local" ? "local" : r.host)}</span></div>
+        ${r.title ? `<div class="lt">${esc(r.title)}</div>` : ""}
+        <div class="l2">${esc(r.first)} · ${esc(r.bucket)}</div>
+      </div>
+      <div class="r">${badge && r[badge] != null ? `<b>${n(r[badge])}</b> here · ` : ""}${n(r.messages)} msg<br>
+        <span class="l2">${n(r.tools)} tools${r.errors ? ` · <span class="errn">${n(r.errors)} err</span>` : ""}</span></div>
+    </div>`).join("");
+}
+
+async function fetchJson(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`API answered ${r.status}`);
+  return r.json();
+}
+
+// every drill NAMES its view — the drawer always filters what the page shows
+async function drillBucket(name){
+  const rows = await fetchJson(`/api/sessions?bucket=${encodeURIComponent(name)}&limit=60&${params()}`);
+  openDrawer(framing().eyebrow, name,
+    `${rows.length} sessions whose dominant directory is this bucket, busiest first — click one to open it`,
+    sessionRows(rows));
+}
+async function drillAll(){
+  const rows = await fetchJson(`/api/sessions?limit=60&${params()}`);
+  openDrawer(framing().eyebrow, "All sessions",
+    `top ${rows.length} by messages in the current view — click one to open it`,
+    sessionRows(rows));
+}
+async function drillCell(d, h){
+  const cell = await fetchJson(`/api/cell/${d}/${h}?${params()}`);
+  const days = cell.days || [], rows = cell.sessions || [];
+  const dayChips = days.length ? `
+    <div class="subh">the dates that fill this hour — click one</div>
+    ${days.slice(0,8).map(x => `
+    <div class="row click" tabindex="0" role="button" data-day="${esc(x.day)}">
+      <div class="l1">${esc(x.day)}</div>
+      <div class="r">${n(x.count)} msg</div></div>`).join("")}` : "";
+  const body = (days.length || rows.length)
+    ? dayChips + `<div class="subh" style="margin-top:16px">the sessions in this cell</div>`
+      + sessionRows(rows, "cell_messages")
+    : `<div class="d-empty">quiet cell — nothing landed here</div>`;
+  openDrawer("one rhythm cell", `${DOW_FULL[DOW[d]]} · ${hourLabel(h)}`,
+    "same rows as every other list — sessions, busiest in this cell first", body);
+}
+async function drillDay(day, push){
+  const rows = await fetchJson(`/api/day/${encodeURIComponent(day)}?${params()}`);
+  openDrawer("one day", day,
+    `${rows.length} sessions active that day, heaviest that day first`,
+    sessionRows(rows, "day_messages"), push);
+}
+async function drillSearch(q){
+  const rows = await fetchJson(`/api/search?q=${encodeURIComponent(q)}&limit=60&${params()}`);
+  openDrawer("search", `“${q}”`,
+    `${rows.length} sessions matched on opening prompt, project or id — in the current view`,
+    sessionRows(rows));
+}
+async function drillSession(sid, push){
+  const d = await fetchJson(`/api/session/${encodeURIComponent(sid)}?${params()}`);
+  if (!d.sid){ openDrawer("session", sid, "not found in the current view",
+    `<div class="d-empty">recount, or widen the period</div>`, push); return; }
+  const bars = (list, unit) => list.length ? list.map(x => `
+    <div class="ranrow"><div class="t" title="${esc(x.name)}">${esc(x.name)}</div>
+      <div class="b" style="width:${(100 * x.count / list[0].count).toFixed(1)}%"></div>
+      <div class="c">${n(x.count)}${unit}</div></div>`).join("")
+    : `<div class="d-empty">none recorded</div>`;
+  openDrawer(`session · ${d.host === "local" ? "local" : d.host} · ${d.bucket}`,
+    d.title || d.sid_full,
+    `${esc(d.first)} → ${esc(d.last)} · ${n(d.span_min)} min on the wall`, `
+    <div class="d-kv">
+      <div class="kv"><div class="n">${n(d.messages)}</div><div class="l">messages</div></div>
+      <div class="kv"><div class="n">${n(d.turns)}</div><div class="l">your turns</div></div>
+      <div class="kv"><div class="n">${n(d.tools)}</div><div class="l">tool calls</div></div>
+      <div class="kv"><div class="n">${d.errors ? `<span class="errn">${n(d.errors)}</span>` : 0}</div>
+        <div class="l">failed tool calls${d.err_streak > 1 ? ` · worst run ×${d.err_streak}` : ""}</div></div>
+      <div class="kv"><div class="n">${n(d.pushbacks)}</div><div class="l">corrections</div></div>
+      <div class="kv"><div class="n">${n(d.interrupts)}</div><div class="l">interrupts</div></div>
+    </div>
+    <div class="subh">what ran</div>${bars(d.tool_mix, "")}
+    <div class="subh">files rewritten</div>${bars(d.files, "×")}
+    ${d.models.length ? `<div class="subh">model</div><div class="modelchips">${
+      d.models.map(m => `<span class="mchip"><b>${esc(m.name)}</b> · ${n(m.count)} msg</span>`).join("")
+    }</div>` : ""}
+    <div class="l2" style="margin-top:14px;color:var(--ink-3);font:11px var(--mono)">
+      sid ${esc(d.sid_full)}</div>`, push);
+}
+
+/* ---------------- render ---------------- */
+function chipRow(items, cur, attr, tipFn){
+  return items.map(([val, lab]) =>
+    `<button class="chipbtn ${String(val)===String(cur)?"on":""}" data-${attr}="${val}"
+      ${tipFn ? `data-tip="${esc(tipFn(val, lab))}"` : ""}>${lab}</button>`
+  ).join("");
+}
+
+function coverageHtml(d){
+  const cov = d.coverage || [];
+  if (!cov.length) return "";
+  const line = cov.map(c =>
+    `<span><b>${esc(HOST_LABEL[c.host] ?? c.host)}</b> ${v(n(c.files), "jsonl files walked for this host in this view")} files · ${esc(c.first_day ?? "—")} → ${esc(c.last_day ?? "—")}</span>`
+  ).join(" · ");
+  const local = cov.find(c => c.host === "local"), remote = cov.find(c => c.host === "remote");
+  let warn = "";
+  if (remote && local && remote.first_day && local.first_day) {
+    const gap = (new Date(remote.first_day) - new Date(local.first_day)) / 864e5;
+    if (gap > 30) warn = ` <span class="warn" data-tip="remote files arrive as collector deltas; anything before ${esc(remote.first_day)} was never pulled — backfill to compare hosts fairly">· remote history starts ${esc(remote.first_day)} — earlier remote sessions not collected</span>`;
+  }
+  return `<div class="coverage">${line}${warn}</div>`;
+}
+
+/* rollable stat tiles — a pool of counted stats; the four fixed tiles stay,
+   the last two slots rotate on a daily seed and re-roll on demand */
+function statPool(d){
+  const s = d.stats;
+  const core = [
+    {key:"busy_dow", label:"busiest day overall", value:DOW_FULL[s.most_active_dow]||"—",
+     src:"day with the most messages, summed over all hours"},
+    {key:"busy_hour", label:"busiest hour overall", value:hourLabel(s.peak_hour),
+     src:"hour with the most messages, summed over all days"},
+  ];
+  const shown = new Set(["deepest", "streak"]); // already fixed tiles
+  return core.concat((d.stat_pool || []).filter(c => !shown.has(c.key)));
+}
+function pickStats(pool, k){
+  const seed = Math.floor((Date.now() - new Date(new Date().getFullYear(),0,0)) / 864e5);
+  const start = ((seed + rollN * k) % pool.length + pool.length) % pool.length;
+  return Array.from({length: Math.min(k, pool.length)},
+    (_, i) => pool[(start + i) % pool.length]);
+}
+function rolledTiles(d){
+  return pickStats(statPool(d), 2).map(c => `
+    <div class="tile plate"><div class="n">${v(c.value, c.src)}</div>
+      <div class="l">${esc(c.label)}</div></div>`).join("");
+}
+function reroll(){
+  rollN++;
+  const slots = document.getElementById("rollslots");
+  slots.innerHTML = rolledTiles(DATA);
+  wireTips(slots);
+}
+
+function pulseStrip(pulse){
+  if (!pulse.length) return "";
+  const max = Math.max(...pulse.map(p => p.local + p.remote), 1);
+  const H = 64;
+  const seg = c => Math.max(c > 0 ? 2 : 0, Math.round(H * c / max));
+  const bars = pulse.map(p => `
+    <button class="pday" data-day="${esc(p.day)}"
+      aria-label="${esc(fmtDay(p.day))}, ${p.local + p.remote} messages"
+      data-tip="${esc(fmtDay(p.day))} — ${n(p.local + p.remote)} msg · ${n(p.local)} local · ${n(p.remote)} remote · click for sessions">
+      <i class="m" style="height:${seg(p.remote)}px"></i>
+      <i class="a" style="height:${seg(p.local)}px"></i>
+    </button>`).join("");
+  const axis = pulse.map((p, i) => {
+    const d = Number(p.day.slice(8));
+    const first = i === 0 || d === 1;
+    return `<span>${first ? MON[Number(p.day.slice(5,7)) - 1] : ""}</span>`;
+  }).join("");
+  const busiest = pulse.reduce((a, b) => (b.local + b.remote > a.local + a.remote ? b : a));
+  return `
+  <section>
+    <h2>pulse — every day on record ${LEGEND}</h2>
+    <div class="pulse plate">
+      <div class="pulse-bars">${bars}</div>
+      <div class="pulse-x">${axis}</div>
+      <div class="pulse-cap">
+        <span>tallest day: <b>${esc(fmtDay(busiest.day))}</b> · ${v(n(busiest.local + busiest.remote), "messages counted on that date, both machines")} — click any day for its sessions</span>
+        <span>${pulse.length} days shown</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+function render(d){
+  DATA = d;
+  const s = d.stats, src = `counted from ${d.parsed_files} session files`;
+  const fr = framing();
+  const topicsNamed = d.topics.filter(t => t.label !== "~ mixed" && t.label !== "other");
+  const mixed = d.topics.find(t => t.label === "~ mixed");
+  const other = d.topics.find(t => t.label === "other");
+  const maxPct = Math.max(...topicsNamed.map(t => t.pct), 1);
+  const matrix = d.rhythm_matrix.length ? d.rhythm_matrix
+    : Array.from({length:7},()=>Array(24).fill(0));
+  const maxCell = Math.max(...matrix.flat(), 1);
+  let peakD = 0, peakH = 0, peakV = -1;
+  matrix.forEach((row,di) => row.forEach((c,hi) => {
+    if (c > peakV){ peakV = c; peakD = di; peakH = hi; }}));
+  const dowTotal = Object.fromEntries(d.by_dow.map(b => [b.key, b.count]));
+
+  const heatRows = matrix.map((row,di) =>
+    `<div class="heat-lab">${DOW[di]}</div>` + row.map((c,hi) => {
+      const t = Math.pow(c/maxCell, .65);
+      const bg = c === 0 ? "var(--panel-2)"
+        : `color-mix(in oklab, var(--local) ${Math.round(10+t*90)}%, var(--panel-2))`;
+      const peak = (di===peakD && hi===peakH) ? " peak" : "";
+      return `<button class="heat-cell${peak}" style="background:${bg}"
+        data-cell="${di},${hi}" aria-label="${DOW[di]} ${hourLabel(hi)}, ${c} messages"
+        data-tip="${DOW[di]} ${hourLabel(hi)} — ${c} messages · click for dates"></button>`;
+    }).join("") + `<div class="heat-tot">${n(dowTotal[DOW[di]] || 0)}</div>`).join("");
+
+  const hourAxis = `<span></span>` + Array.from({length:24},(_,h) =>
+    `<span>${h%3===0 ? String(h).padStart(2,"0") : ""}</span>`).join("") + `<span></span>`;
+  const dowTable = d.by_dow.map(b =>
+    `<tr><th>${DOW_FULL[b.key]||b.key}</th><td>${n(b.count)}</td></tr>`).join("");
+
+  const sparkHtml = t => {
+    const sp = t.spark || [];
+    if (!sp.some(w => w.count)) return "";
+    const mx = Math.max(...sp.map(w => w.count), 1);
+    return `<div class="spark" aria-label="12-week trend">${sp.map(w => {
+      const h = w.count ? Math.max(3, Math.round(w.count / mx * 20)) : 2;
+      return `<i class="${w.count === mx ? "hot" : ""}" style="height:${h}px${w.count ? "" : ";opacity:.3"}"
+        data-tip="${esc(w.week)} — ${n(w.count)} messages"></i>`;
+    }).join("")}</div>`;
+  };
+
+  const topicRow = t => {
+    const he = t.host_events || {};
+    const a = he.local || 0, m = he.remote || 0, tot = a + m || 1;
+    const w = (t.pct / maxPct * 100);
+    const meta = [
+      `${n(t.sessions)} sess`,
+      `${n(t.active_days)}d`,
+      t.first_day && t.last_day && t.first_day !== t.last_day
+        ? `${esc(t.first_day)} → ${esc(t.last_day)}` : "",
+      `${n(t.tools)} tools`,
+      t.pushbacks ? `${n(t.pushbacks)} corr` : "",
+    ].filter(Boolean).join(" · ");
+    return `
+    <div class="topic" tabindex="0" role="button" data-bucket="${esc(t.label)}"
+      data-tip="opens the sessions whose dominant directory is ${esc(t.label)}, in this view">
+      <div>
+        <div class="name">${esc(t.label)}</div>
+        ${t.blurb ? `<div class="blurb">${esc(t.blurb)}</div>` : ""}
+        <div class="bar" data-tip="${esc(t.label)} — ${t.pct}% (${n(t.events)} messages · ${n(a)} local · ${n(m)} remote)">
+          ${a ? `<i class="a" style="width:${(w * a / tot).toFixed(1)}%"></i>` : ""}
+          ${m ? `<i class="m" style="width:${(w * m / tot).toFixed(1)}%"></i>` : ""}
+        </div>
+        <div class="meta">${meta}</div>
+      </div>
+      <div class="side">
+        <div class="pct">${v(t.pct + "%", n(t.events) + " messages")}</div>
+        ${sparkHtml(t)}
+      </div>
+    </div>`;
+  };
+
+  const f = d.friction;
+  const errPct = f.tool_results ? (100 * f.tool_errors / f.tool_results).toFixed(1) : "0";
+  const toolMax = d.tool_mix.length ? d.tool_mix[0].count : 1;
+
+  document.getElementById("app").innerHTML = `
+  <header>
+    <div>
+      <div class="eyebrow">${esc(fr.eyebrow)}</div>
+      <h1>Reflect<em>.</em></h1>
+    </div>
+    <div class="window"><b>${d.window_days}</b> days · ${esc(s.first_day||"—")} → ${esc(s.last_day||"—")}</div>
+  </header>
+  <div class="controls">
+    <div class="ctl"><span class="lab">look back</span>${chipRow(PERIODS, view.months, "months",
+      (val, lab) => val == 0 ? "recount the engine over the whole log history"
+        : `recount the engine over the last ${lab} — every number and list below refilters`)}</div>
+    <div class="ctl"><span class="lab">machine</span>${chipRow(HOSTS, view.host, "host",
+      (val, lab) => val === "all" ? "count files of both hosts"
+        : `count only ${lab}'s session files — the coverage line says what that includes`)}</div>
+    <div class="ctl search"><input id="q" type="search"
+      placeholder="find a session — prompt, project, id…" aria-label="search sessions"></div>
+  </div>
+  ${coverageHtml(d)}
+
+  <div class="lede">
+    <div>
+      <div class="narrative"><p>${esc(d.narrative)}</p></div>
+      <div class="prov">
+        <span class="dot"></span>
+        <span>${d.narrative_fallback
+          ? 'prose: <span class="warn">template</span> — deterministic, not yet baked for this view; its numbers are counted'
+          : `prose: ${esc(d.narrative_model)}${d.narrative_baked_at ? ` · as of ${new Date(d.narrative_baked_at*1000).toLocaleDateString([],{month:'short',day:'numeric'})}` : ''}${d.narrative_stale ? ' · <span class="warn">shape moved since — re-bake to refresh</span>' : ''} · numbers are banned in prose — every figure on this page is counted`}</span>
+      </div>
+    </div>
+    <div>
+      <h2>${esc(fr.periodTitle)} in numbers${esc(fr.hostSuffix)}
+        <button class="roll" id="roll" data-tip="swap the two rolled tiles for the next slice of the counted-stat pool — the rotation reseeds itself daily">roll ↻ ${statPool(d).length}</button></h2>
+      <div class="tiles">
+        <div class="tile plate click" id="t-sess" tabindex="0" role="button"
+          aria-label="show sessions" data-tip="opens the full session list of this view"
+          ><div class="n">${v(n(s.total_sessions), src)}</div>
+          <div class="l">sessions → list</div></div>
+        <div class="tile plate"><div class="n">${v(n(s.total_messages), src)}</div>
+          <div class="l">messages</div></div>
+        <div class="tile plate"><div class="n">${v(s.active_days, src)}</div>
+          <div class="l">active days of ${d.window_days}</div>
+          <div class="s">longest run ${v(s.longest_streak_days, "longest streak of consecutive active days")} days</div></div>
+        <div class="tile plate click" id="t-deep" tabindex="0" role="button"
+          aria-label="open deepest session" data-tip="opens that session's full counted detail"
+          ><div class="n">${v(n(s.top_session_msgs), "messages in the single deepest session")}</div>
+          <div class="l">deepest session → open</div></div>
+        <div id="rollslots" style="display:contents">${rolledTiles(d)}</div>
+      </div>
+    </div>
+  </div>
+
+  ${pulseStrip(d.pulse)}
+
+  <section>
+    <h2>when you work${esc(fr.hostSuffix)} <span class="hint">— click a cell for its dates & sessions</span></h2>
+    <div class="heat plate">
+      <div class="heat-grid">${heatRows}</div>
+      <div class="heat-hours">${hourAxis}</div>
+      <div class="heat-cap">brightest cell = your single busiest weekday-hour: <b>${esc(DOW_FULL[DOW[peakD]])} ${hourLabel(peakH)}</b> · ${v(n(peakV), "messages counted in that weekday-hour")} — right column sums each weekday; day- and hour-totals (stat tiles above) can point elsewhere, they marginalise</div>
+      <details class="alt"><summary>as a table</summary>
+        <table><tbody>${dowTable}</tbody></table></details>
+    </div>
+  </section>
+
+  <section class="split-wrap">
+    <div class="split">
+      <div>
+        <h2>what it went into${esc(fr.hostSuffix)} <span class="hint">— click a topic for its sessions</span> ${LEGEND}</h2>
+        ${topicsNamed.map(topicRow).join("")}
+        <div class="drawer-note">${mixed ? `<span class="topic-note click" role="button" tabindex="0" data-bucket="~ mixed" style="cursor:pointer;border-bottom:1px dotted var(--ink-3)">${v(mixed.pct + "%", n(mixed.events) + " messages")} ran from the home directory</span> — uncategorised drawer, not a topic (click to inspect).` : ""}
+        ${other ? ` Remaining ${v(other.pct + "%", n(other.events) + " messages")} spread across small buckets.` : ""}</div>
+      </div>
+      <div>
+        <h2>what the agent ran</h2>
+        <div class="subh">tool calls</div>
+        ${d.tool_mix.map(t => `
+        <div class="ranrow"><div class="t" title="${esc(t.name)}">${esc(t.name)}</div>
+          <div class="b" style="width:${(100 * t.count / toolMax).toFixed(1)}%"
+            data-tip="${esc(t.name)} — ${n(t.count)} calls"></div>
+          <div class="c">${v(n(t.count), "tool_use blocks counted")}</div></div>`).join("")}
+        ${d.model_mix.length ? `<div class="subh">answered by</div><div class="modelchips">
+          ${d.model_mix.map(m => `<span class="mchip"><b>${esc(m.name)}</b> · ${v(n(m.count), "assistant messages carrying this model id")} msg</span>`).join("")}
+        </div>` : ""}
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>where it hurt <span class="hint">— friction, counted, never modelled</span></h2>
+    <div class="hurt">
+      <div class="hurt-tiles">
+        <div class="tile plate"><div class="n"><span class="err">${v(n(f.tool_errors), "tool results flagged is_error")}</span></div>
+          <div class="l">failed tool calls</div>
+          <div class="s">${errPct}% of ${v(n(f.tool_results), "tool results counted")} results</div></div>
+        <div class="tile plate"><div class="n">${v(n(f.error_sessions), "sessions with at least one failed tool call")}</div>
+          <div class="l">sessions that hit an error</div></div>
+        <div class="tile plate"><div class="n">${v(n(f.corrections), "your correction turns right after a reply (heuristic markers)")}</div>
+          <div class="l">course corrections</div></div>
+        <div class="tile plate"><div class="n">${v(n(f.interrupts), "turns starting with Claude Code's interrupt marker")}</div>
+          <div class="l">interrupted runs</div></div>
+        ${f.streaks.length ? `<div style="grid-column:1/-1">
+          <div class="subh">worst error runs — click to open</div>
+          ${f.streaks.map(st => `
+          <div class="streak" tabindex="0" role="button" data-sid="${esc(st.sid.slice(0,8))}">
+            <span class="x">×${st.length}</span>
+            <span class="w">consecutive failures · ${esc(st.bucket || "?")}</span>
+            <span class="sid">${esc(st.sid.slice(0,8))}</span>
+          </div>`).join("")}</div>` : ""}
+      </div>
+      <div>
+        <div class="subh">files that took the most rewriting</div>
+        ${d.churn.length ? d.churn.map(c => `
+        <div class="churn-row"><div class="f" title="${esc(c.name)}">${esc(c.name)}</div>
+          <div class="b" style="width:${(100 * c.edits / d.churn[0].edits).toFixed(1)}%"
+            data-tip="${esc(c.name)} — ${n(c.edits)} Edit/Write calls in ${n(c.sessions)} sessions"></div>
+          <div class="c">${v(n(c.edits) + "×", "Edit/Write tool calls on this filename")} · ${c.sessions}s</div></div>`).join("")
+        : `<div class="empty-note">no rewrites recorded in this view</div>`}
+        <div class="drawer-note">churn = the same filename rewritten again and again; the top of this list is where the effort (or the struggle) concentrated.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>threads that carried <span class="hint">— click for the sessions behind</span></h2>
+    <div class="arcs">
+      ${d.arcs.slice(0,8).map(a => `
+      <div class="arc plate" tabindex="0" role="button" data-bucket="${esc(a.name)}"
+        data-tip="opens the sessions whose dominant directory is ${esc(a.name)}, in this view">
+        <div class="name">${esc(a.name)}</div>
+        <div class="meta">
+          <span class="chip ${a.kind}">${a.kind}</span>
+          ${a.thread ? `<span class="chip">${esc(a.thread)}</span>` : ""}
+          <span class="stats">${v(a.active_days,"active days")}d · ${v(a.sessions,"sessions")} sess</span>
+        </div>
+        ${a.fact
+          ? `<div class="outcome"><span class="fact" title="${esc(a.fact_src)}">${esc(a.fact)}</span>${a.bank_size > 1 ? `<span class="bankn"> · 1 of ${a.bank_size} in bank</span>` : ""}</div>`
+          : `<div class="outcome" style="color:var(--ink-3)">in flight — no counted fact yet</div>`}
+      </div>`).join("")}
+    </div>
+  </section>
+
+  <section>
+    <h2>how you work with the agent</h2>
+    <div class="skills">
+      ${d.skills.map(k => `
+      <div class="skill plate">
+        <div class="k">${esc(k.skill)}</div>
+        <div class="m">${esc(k.metric)}</div>
+        <div class="h">${esc(k.headline)}</div>
+        <div class="d">${esc(k.detail)}</div>
+      </div>`).join("")}
+    </div>
+  </section>
+
+  <footer>
+    <span>${v(d.parsed_files,"jsonl files walked")} files · generated ${new Date(d.generated_at).toLocaleString()}</span>
+    <span class="fr">
+      <a id="raw" href="#" target="_blank" rel="noopener">raw JSON</a>
+      <button id="refresh">recount</button>
+    </span>
+  </footer>`;
+
+  /* wire the interactions — every control hits a real endpoint */
+  document.querySelectorAll("[data-months]").forEach(b =>
+    b.onclick = () => { view.months = +b.dataset.months; load(); });
+  document.querySelectorAll("[data-host]").forEach(b =>
+    b.onclick = () => { view.host = b.dataset.host; load(); });
+  document.getElementById("refresh").onclick = () => load(true);
+  document.getElementById("raw").href = "/api/recap?" + params();
+  document.getElementById("roll").onclick = reroll;
+
+  const act = (el, fn) => {
+    el.onclick = fn;
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } };
+  };
+  document.querySelectorAll("[data-bucket]").forEach(el =>
+    act(el, () => drillBucket(el.dataset.bucket)));
+  document.querySelectorAll(".heat-cell").forEach(el => {
+    const [dd, hh] = el.dataset.cell.split(",").map(Number);
+    el.onclick = () => drillCell(dd, hh);
+  });
+  document.querySelectorAll("#app [data-day]").forEach(el =>
+    act(el, () => drillDay(el.dataset.day)));
+  document.querySelectorAll("#app .streak[data-sid]").forEach(el =>
+    act(el, () => drillSession(el.dataset.sid)));
+  act(document.getElementById("t-sess"), drillAll);
+  const deep = document.getElementById("t-deep");
+  if (s.top_session_sid) act(deep, () => drillSession(s.top_session_sid.slice(0,8)));
+
+  const q = document.getElementById("q");
+  q.onkeydown = e => { if (e.key === "Enter" && q.value.trim()) drillSearch(q.value.trim()); };
+
+  wireTips();
+}
+
+function wireTips(root){
+  const tip = document.getElementById("tip");
+  (root || document).querySelectorAll("[data-tip]").forEach(el => {
+    el.addEventListener("mousemove", e => {
+      tip.textContent = el.dataset.tip;
+      tip.style.display = "block";
+      tip.style.left = Math.min(e.clientX + 12, innerWidth - 260) + "px";
+      tip.style.top = Math.min(e.clientY + 14, innerHeight - 44) + "px";
+    });
+    el.addEventListener("mouseleave", () => tip.style.display = "none");
+  });
+}
+
+const params = () => {
+  const q = new URLSearchParams();
+  if (view.months) q.set("months", view.months);
+  if (view.host !== "all") q.set("host", view.host);
+  return q;
+};
+
+async function load(force){
+  closeDrawer();
+  const app = document.getElementById("app");
+  app.style.opacity = .5;
+  const q = params();
+  if (force) q.set("force", "true");
+  try {
+    const r = await fetch("/api/recap?" + q);
+    if (!r.ok){
+      app.innerHTML = `<div class="loading">recap API answered ${r.status} — is the engine running? Start it with <code>python3 server.py</code> and reload.</div>`;
+      app.style.opacity = 1;
+      return;
+    }
+    const data = await r.json();
+    app.className = "";
+    render(data);
+  } catch (err) {
+    app.innerHTML = `<div class="loading">could not reach the engine (${esc(err.message)}) — start it with <code>python3 server.py</code> and reload.</div>`;
+  }
+  app.style.opacity = 1;
+}
+load();
+</script>
+</body>
+</html>

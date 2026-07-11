@@ -1,0 +1,4 @@
+# cid|||regex(lower prompt)|||when-label|||native chunks
+1|||deploy|ship it|release|prod\b|go live|||before anything goes out|||deploy;ship it;release;go live
+2|||faster|benchmark|perf\b|optimi[sz]|latency|||claim needs a number|||faster;benchmark;latency
+3|||refactor|while we'?re at it|also add|clean.?up|||one task at a time|||refactor;while we're at it

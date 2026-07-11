@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+demo/.state/
+demo/glados/fire-log.jsonl.bak*
+.DS_Store

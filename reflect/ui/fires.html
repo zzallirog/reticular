@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fires — reticular</title>
+<style>
+:root{--bg:#101214;--panel:#191d20;--ink:#d7dbdf;--dim:#8b949c;--line:#2a2f34;
+--acc:#C96442;--ok:#5fa36a;--warn:#c9a23f;--err:#D14B44;--rem:#4E92C2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+main{max-width:1060px;margin:0 auto;padding:24px 20px 80px}
+h1{font-size:18px;margin:0 0 2px}h1 a{color:var(--dim);text-decoration:none;font-weight:400}
+.sub{color:var(--dim);margin:0 0 20px;font-size:12px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile b{display:block;font-size:22px;font-weight:600}
+.tile span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:26px 0 10px}
+.bars .row{display:grid;grid-template-columns:52px 1fr 60px;gap:10px;align-items:center;margin:4px 0}
+.bars .bar{height:14px;background:var(--panel);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.bars .bar i{display:block;height:100%;background:var(--acc)}
+.bars .n{color:var(--dim);text-align:right}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{color:var(--dim);text-align:left;font-weight:400;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.v-genuine{color:var(--ok)}.v-echo{color:var(--err)}.v-partial{color:var(--warn)}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:0 8px;
+margin:0 4px 4px 0;color:var(--dim);font-size:11px}
+.chip.on{color:var(--ink);border-color:var(--acc)}
+.filters{margin:0 0 10px}
+.dim{color:var(--dim)}.sid{cursor:pointer;color:var(--rem)}
+.prompt{max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wit{color:var(--warn)}
+.empty{color:var(--dim);padding:30px 0;text-align:center}
+</style>
+</head>
+<body>
+<main>
+<h1>Fires <a href="/">· ← sessions</a></h1>
+<p class="sub">the attention plane: what the harness surfaced, what actually landed,
+and where the lexicon lies. Every number is counted from logs — none narrated.</p>
+
+<div class="tiles" id="tiles"></div>
+
+<h2>Fires per core (surfaced by the prompt hook)</h2>
+<div class="bars" id="cores"></div>
+
+<h2>Echo spans — words that only ever false-fire <span class="dim">(candidates for anti-triggers)</span></h2>
+<div id="spans"></div>
+
+<h2>Cases <span class="dim">(fire-log rows with a landing verdict)</span></h2>
+<div class="filters" id="filters"></div>
+<div id="cases"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let FILTER = {verdict: "", core: ""};
+
+async function j(u){ const r = await fetch(u); return r.json(); }
+
+function tiles(s){
+  const v = s.verdicts || {};
+  const tot = Object.values(v).reduce((a,b)=>a+b,0);
+  const pct = k => tot ? Math.round((v[k]||0)*100/tot)+"%" : "—";
+  $("#tiles").innerHTML = [
+    [s.rows, "prompt rows"], [s.sessions, "sessions"],
+    [(s.fire_rate*100).toFixed(0)+"%", "fire rate"],
+    [s.acted_rows, "rows with landing"],
+    [pct("genuine"), "genuine (judged)"], [pct("echo"), "echo (judged)"],
+    [s.arrival_miss_cases, "arrival-miss cases"],
+  ].map(([b,l])=>`<div class="tile"><b>${esc(b)}</b><span>${esc(l)}</span></div>`).join("");
+}
+
+function coreBars(per){
+  const max = Math.max(...Object.values(per), 1);
+  $("#cores").innerHTML = Object.entries(per).map(([c,n])=>
+    `<div class="row"><span>core ${esc(c)}</span>
+     <div class="bar"><i style="width:${n*100/max}%"></i></div>
+     <span class="n">${n}</span></div>`).join("") || `<div class="empty">no fires yet</div>`;
+}
+
+function spanTable(rows){
+  if(!rows.length){ $("#spans").innerHTML = `<div class="empty">no judged echo spans yet — run the annotate workflow (docs/TUNE.md)</div>`; return; }
+  $("#spans").innerHTML = `<table><tr><th>core</th><th>span</th><th>echo</th><th>partial</th><th>genuine</th></tr>` +
+    rows.slice(0,20).map(r=>`<tr><td>${esc(r.core)}</td><td class="wit">${esc(r.span)}</td>
+    <td class="v-echo">${r.echo}</td><td>${r.partial}</td><td>${r.genuine}</td></tr>`).join("") + `</table>`;
+}
+
+function filters(){
+  const verdicts = ["", "genuine", "echo", "partial"];
+  $("#filters").innerHTML = verdicts.map(v =>
+    `<span class="chip ${FILTER.verdict===v?"on":""}" onclick="setV('${v}')">${v||"all"}</span>`).join("") +
+    (FILTER.core ? ` <span class="chip on" onclick="setC('')">core ${esc(FILTER.core)} ✕</span>` : "");
+}
+window.setV = v => { FILTER.verdict = v; loadCases(); };
+window.setC = c => { FILTER.core = c; loadCases(); };
+
+function caseRows(rows){
+  if(!rows.length){ $("#cases").innerHTML = `<div class="empty">nothing under this filter</div>`; return; }
+  $("#cases").innerHTML = `<table><tr><th>when</th><th>prompt</th><th>cores → verdict</th><th>witness</th><th>sid</th></tr>` +
+    rows.map(c => {
+      const vs = c.verdicts || {};
+      const cores = (c.acted_on||[]).map(k =>
+        `<span class="v-${esc(vs[k]||"")}" style="cursor:pointer" onclick="setC('${esc(k)}')">${esc(k)}:${esc(vs[k]||"?")}</span>`).join(" ");
+      const wit = Object.values(c.witness||{}).flat().slice(0,4).map(esc).join(", ");
+      return `<tr><td class="dim">${esc((c.ts||"").slice(5,16))}</td>
+        <td class="prompt" title="${esc(c.prompt)}">${esc(c.prompt)}</td>
+        <td>${cores}${(c.arrival_miss||[]).length?` <span class="dim">miss:[${esc((c.arrival_miss||[]).join(","))}]</span>`:""}</td>
+        <td class="wit">${wit}</td>
+        <td><span class="sid" title="click to copy" onclick="navigator.clipboard.writeText('${esc(c.sid)}')">${esc((c.sid||"").slice(0,8))}</span></td></tr>`;
+    }).join("") + `</table>`;
+}
+
+async function loadCases(){
+  filters();
+  caseRows(await j(`/api/fires/cases?verdict=${FILTER.verdict}&core=${FILTER.core}&limit=80`));
+}
+
+(async () => {
+  const s = await j("/api/fires");
+  tiles(s); coreBars(s.per_core || {});
+  spanTable(await j("/api/fires/echo-spans"));
+  loadCases();
+})();
+</script>
+</main>
+</body>
+</html>

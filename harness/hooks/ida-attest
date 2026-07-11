@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+# ida-attest (PORTABLE v2) — UserPromptSubmit hook. Recall: ситуация-ядра по промпту.
+# Две ноги: лексика (free, core-triggers.txt) → dense-P2P backstop (только если лексика пуста).
+# v2 (07-11): + witness промпт-ноги (спаны, зажёгшие lex) + третья ось act/read/neutral
+# (грамматика вокруг слова, не вокабуляр) + voice human/paste + acted_on-канал (null,
+# проставляет ida-land / backfill) — всё, что нужно casebook-циклу трассировки ложных фиров.
+# Stdlib + urllib. Никогда не ломает сессию (try/except везде).
+import sys, os, json, re, math, datetime
+
+H = os.path.expanduser("~")
+G = os.path.join(H, ".claude/glados")
+TRIG  = os.path.join(G, "core-triggers.txt")
+P2P   = os.path.join(G, "core_p2p.json")
+DECAY = os.path.join(G, "core-decay.json")
+FLOG  = os.path.join(G, "fire-log.jsonl")
+AXIS  = os.path.join(G, "axis.json")     # опционально: {"act_native": ["5","8"]} — ядра, чьи триггеры = act-глаголы
+CORES = "~/.claude/overlays/cores"
+OLLAMA = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+DECAY_CAP = 2        # ядро, указанное DECAY_CAP ходов подряд → подавить (стало обоями)
+DENSE_FLOOR = 0.50
+WITNESS_CAP = 6      # уникальных спанов per-core (свидетель, не пухнуть)
+
+def read(p, n=-1):
+    try: return open(p, encoding="utf-8", errors="ignore").read(n)
+    except OSError: return ""
+
+# ── ТРЕТЬЯ ОСЬ: направление операции act(куда)/read(где) из ГРАММАТИКИ ВОКРУГ слова ──
+# Корпус-независимо: закрытый класс носителей (падеж-суффикс → класс-глагола → defer).
+# Зачем: topic-слово («деплой», «пост») фирит ядро и на «покажи что задеплоено» —
+# явный READ-ход. Для act-native ядер (axis.json) read-форма = ложный фир → мьют.
+# RU+EN носители; другой язык = добавить carrier-лексикон (ось инвариантна).
+_ACT_VERB = re.compile(r"\b(положи|добав|размест|обнов|запиш|запис|опиш|задокумент|документир|запил|выкат|вкати|впиш|закодир|вставь|воткни|деплой|запуш|пушь?|опубликова|публику|отправ|скинь|отпиш|набросай|запуст|ответь|ответим|ответите|ответить|reply|respond|пост(?:им|ить|ишь|ну|ани)|закоммить|смерж|замерж|разбер|разобр|утеч|утёк|утек|эксфил|exfil|leak|expose|egress|put|post|push|submit|add|write|deploy|publish|send|commit|merge|ship|append|encode|insert|launch)", re.I)
+_READ_VERB = re.compile(r"\b(найди|найти|покажи|показать|прочт|прочит|посмотр|глянь|обсуд|расскаж|что\s+в\b|что\s+есть|чё\s+в\b|есть\s+ли|какие\s+есть|где\b|читаю|читать|перечита|find|show|read|list|search|lookup|what'?s?\s+in|browse|view)", re.I)
+_DEFER = re.compile(r"\b(позже|потом|не\s+сейчас|разбер[её]м\s+позже|later|defer)\b", re.I)
+_PREP_NOUN = re.compile(r"\b(?:в|во|на)\s+([а-яёa-z][а-яёa-z\-]{2,})\b", re.I)
+_ACC_SUF = re.compile(r"[уюУЮ]$")
+_PREP_SUF = re.compile(r"(?:[еиЕИ]|ах|ях|АХ|ЯХ)$")
+_VOW_END = re.compile(r"[аеёиоуыэюяАЕЁИОУЫЭЮЯ]$")
+_BARE_Q = re.compile(r"^\s*(что|чё|какие|какой|где|сколько|what|which|where|how\s+many)\b", re.I)
+
+def direction_of(plow):
+    """act|read|neutral — направление из грамматики, не вокабуляра."""
+    t = plow.lower()
+    if _DEFER.search(t): return "neutral"        # отложено → вектор снят
+    act = read_ = 0
+    if _ACT_VERB.search(t):  act += 2
+    if _READ_VERB.search(t): read_ += 2
+    for m in _PREP_NOUN.finditer(t):             # носитель: падеж-суффикс после в/во/на
+        n = m.group(1)
+        if _PREP_SUF.search(n):       read_ += 1  # «в арке / в дискорде» = где
+        elif _ACC_SUF.search(n):      act += 1    # «в арку / в папку» = куда
+        elif not _VOW_END.search(n):  act += 1    # «в дискорд / в гитхаб» = винит. инаним. = куда
+    if _BARE_Q.search(t) and not _ACT_VERB.search(t): read_ += 1
+    if act   >= 1 and act   > read_: return "act"
+    if read_ >= 1 and read_ > act:   return "read"
+    return "neutral"
+
+def main():
+    try: data = json.load(sys.stdin)
+    except Exception: data = {}
+    prompt = data.get("prompt") or ""
+    sid = data.get("session_id") or ""
+    plow = prompt.lower()
+    out, surfaced, lex_hits, sem_hits = [], [], [], []
+    lex_wit = {}       # witness промпт-ноги: спаны, зажёгшие lex per-core
+    dense_scores = {}
+    when_by = {}
+
+    # voice: дешёвое АУДИРУЕМОЕ правило (не классификатор). Длинный связный блок ⇒
+    # пейст/форвард третьей стороны → харвест лексикона его НЕ берёт (контекст, не словарь).
+    plen = len(prompt)
+    longest = max((len(l) for l in prompt.splitlines()), default=plen)
+    voice = "paste" if (plen > 1200 or longest > 800) else "human"
+
+    # act-native ядра (третья ось): конфиг, не хардкод — у каждого вульта свои
+    act_native = set()
+    try: act_native = set(str(c) for c in json.load(open(AXIS, encoding="utf-8")).get("act_native", []))
+    except Exception: pass
+    _dir = direction_of(plow)
+
+    # нога-1 ЛЕКСИКА (regex по промпту) + witness
+    for line in read(TRIG).splitlines():
+        if not line.strip() or line.lstrip().startswith("#"): continue
+        p = line.split("|||")
+        if len(p) < 3: continue
+        cid = p[0].strip()[:2].lstrip("0") or "0"
+        when_by[cid] = p[2].strip()
+        try:
+            spans = []
+            for m in re.finditer(p[1].strip(), plow):
+                s = m.group(0).strip()
+                if s and s not in spans: spans.append(s)
+                if len(spans) >= WITNESS_CAP: break
+            if spans:
+                if cid in act_native and _dir == "read": continue   # мьют read-фолс-фир act-native ядра
+                lex_hits.append((cid, p[2].strip()))
+                lex_wit.setdefault(cid, []).extend(x for x in spans if x not in lex_wit.get(cid, []))
+        except re.error: continue
+
+    cand = list(lex_hits)
+    # нога-3b DENSE backstop (pay-on-miss: только если лексика пуста)
+    if not lex_hits and len(plow.split()) >= 3 and os.path.exists(P2P):
+        try:
+            import urllib.request
+            idx = json.load(open(P2P, encoding="utf-8"))
+            req = urllib.request.Request(OLLAMA + "/api/embed",
+                data=json.dumps({"model": idx["model"], "input": "search_query: " + prompt[:600]}).encode(),
+                headers={"Content-Type": "application/json"})
+            qv = json.load(urllib.request.urlopen(req, timeout=4))["embeddings"][0]
+            qn = math.sqrt(sum(x*x for x in qv)) or 1.0
+            qv = [x/qn for x in qv]
+            best_c, best_s = None, 0.0
+            for c, ents in idx["cores"].items():
+                for e in ents:
+                    s = sum(a*b for a, b in zip(qv, e["vec"]))
+                    if s > best_s: best_s, best_c = s, c
+            if best_c and best_s >= DENSE_FLOOR:
+                cand.append((best_c, when_by.get(best_c, "dense-P2P")))
+                sem_hits.append(best_c); dense_scores[best_c] = round(best_s, 4)
+        except Exception: pass
+
+    # decay (anti-wallpaper)
+    try: streak = json.load(open(DECAY, encoding="utf-8"))
+    except Exception: streak = {}
+    fresh, pointed = [], set()
+    for cid, when in cand:
+        if cid in pointed: continue
+        pointed.add(cid)
+        if streak.get(cid, 0) >= DECAY_CAP: continue
+        surfaced.append(cid)
+        fresh.append(f"→ перечитай ядро {cid} ({when}): {CORES}/{cid.zfill(2)}-*.md")
+    new = {c: (streak.get(c,0)+1 if c in pointed else 0) for c in set(list(streak)+list(pointed))}
+    try:
+        os.makedirs(G, exist_ok=True)
+        json.dump({c:v for c,v in new.items() if v>0}, open(DECAY,"w",encoding="utf-8"))
+    except OSError: pass
+
+    if fresh:
+        out.append("Ситуационно (recall ядра — пары=сильный сигнал):"); out += fresh
+
+    # FIRE-LOG v2 — строка на каждый содержательный ход; acted_on = канал (null),
+    # проставляет назад ida-land (Stop) / backfill_acted.py. Отсюда весь casebook-цикл.
+    try:
+        if len(plow.split()) >= 3:
+            prev = []
+            try:
+                for l in reversed(read(FLOG).splitlines()):
+                    try: d = json.loads(l)
+                    except Exception: continue
+                    if d.get("sid") == sid: prev = d.get("surfaced", []); break
+            except Exception: pass
+            rec = {"ts": datetime.datetime.now().isoformat(timespec="seconds"), "sid": sid,
+                   "prompt": prompt[:160],
+                   "surfaced": surfaced,                       # что реально всплыло
+                   "lex": [c for c,_ in lex_hits],             # нога-1
+                   "sem": sem_hits,                            # нога-3b
+                   "situ_lex_empty": (not cand),               # МЕХАНИЗМ, не вердикт: 0 ситуация-лексики на содержат. ходу; настоящий arrival-miss считается пост-хок (compile_cases)
+                   "prev": prev,                               # surfaced прошлого хода (anchor-сырьё)
+                   "scores": dense_scores,                     # dense-косинус per-core (lex бинарна)
+                   "acted_on": None,                           # канал: оракул проставит назад
+                   "voice": voice, "plen": plen,               # аудируемое правило едет с сырьём
+                   "dir": _dir,                                # третья ось этого промпта
+                   "wit_prompt": lex_wit or None}              # спаны, зажёгшие lex (свидетель входа)
+            os.makedirs(G, exist_ok=True)
+            open(FLOG, "a", encoding="utf-8").write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception: pass
+
+    if out:
+        sys.stdout.write("<ida-attest>\n" + "\n".join(out) + "\n</ida-attest>\n")
+
+try: main()
+except Exception: pass
+sys.exit(0)

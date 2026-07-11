@@ -1,0 +1,52 @@
+#!/bin/sh
+# ida-floor (PORTABLE) — SessionStart: инжект ТЕЛ пола (диспозиция-ядер) BY CONSTRUCTION.
+#
+# Корневой урок: директива «прочитай X» под давлением задачи ПОДТВЕРЖДАЕТСЯ, но не
+# ИСПОЛНЯЕТСЯ — агент работает вслепую. Тела, присутствующие в контексте, пропустить
+# нельзя; live-cat при старте = пол никогда не дрейфует от файлов на диске.
+#
+# ЧТО в пол (две ноги):
+#   1) cores/*.md с `class: disposition` во frontmatter (харвест/владелец пометил:
+#      грань применима ≈ каждый ход → лексикой её НЕ диспетчить, она живёт тут);
+#   2) явный список ~/.claude/glados/floor.txt — по строке на путь (доп. файлы:
+#      оверлей, gate-каталог, что угодно). # = коммент, пустые строки ок.
+#
+# Ситуация-ядра в пол НЕ едут — их зажигает ida-attest по лексике (иначе обои).
+set -eu
+
+CORES="$HOME/.claude/overlays/cores"
+FLOORLIST="$HOME/.claude/glados/floor.txt"
+
+bodies=""
+
+# нога-1: disposition-ядра по frontmatter
+if [ -d "$CORES" ]; then
+    for f in "$CORES"/*.md; do
+        [ -f "$f" ] || continue
+        if head -8 "$f" | grep -qiE '^class:[[:space:]]*disposition'; then
+            bodies="${bodies}${f}
+"
+        fi
+    done
+fi
+
+# нога-2: явный floor.txt
+if [ -f "$FLOORLIST" ]; then
+    while IFS= read -r line; do
+        case "$line" in ''|'#'*) continue ;; esac
+        p=$(printf '%s' "$line" | sed "s|^~|$HOME|")
+        [ -f "$p" ] && bodies="${bodies}${p}
+"
+    done < "$FLOORLIST"
+fi
+
+[ -n "$bodies" ] || exit 0
+
+printf '<floor-bodies>\n'
+printf 'Это НЕ директива «прочитай» — это САМИ ТЕЛА пола, уже в контексте (live-cat при старте). Диспозиция-грани применимы почти каждый содержательный ход — держи их как рамку. Ситуация-ядра приходят отдельно (ida-attest по лексике промпта).\n'
+printf '%s' "$bodies" | while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    printf '\n===== FLOOR: %s =====\n' "$f"
+    cat "$f"
+done
+printf '\n</floor-bodies>\n'

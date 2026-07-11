@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+# ida-land (PORTABLE) — Stop hook: landing-oracle для fire-log acted_on.
+# Читает ответ модели этого хода из транскрипта, гонит ТОТ ЖЕ лексикон core-triggers.txt,
+# back-fill'ит acted_on + witness (спаны-свидетели) в последнюю строку fire-log сессии.
+#
+# ЧЕСТНАЯ ГРАНИЦА: это PROXY-оракул (reply-lex), не human-label. acted_src="reply-lex"
+# едет рядом — пост-хок анализ ОБЯЗАН различать (echo-смещение того же лексикона, см. TUNE.md).
+# acted_on=[] ≠ null: [] = «сканировал, ядра в ответе не легли»; null = оракул не дошёл.
+# Human-label (другой acted_src) НЕ перезаписывается.
+import sys, os, json, re, tempfile
+
+H = os.path.expanduser("~")
+G = os.path.join(H, ".claude/glados")
+TRIG = os.path.join(G, "core-triggers.txt")
+FLOG = os.path.join(G, "fire-log.jsonl")
+SRC = "reply-lex"
+WITNESS_CAP = 6   # уникальных спанов per-core (кейс-свидетель, не пухнуть)
+
+def read(p):
+    try: return open(p, encoding="utf-8", errors="ignore").read()
+    except OSError: return ""
+
+def last_turn_reply(tpath):
+    """Текст assistant-блоков ПОСЛЕ последнего реального юзер-хода (не tool_result, не meta)."""
+    buf = []
+    for line in read(tpath).splitlines():
+        try: row = json.loads(line)
+        except Exception: continue
+        t = row.get("type")
+        if row.get("isMeta"): continue
+        msg = row.get("message") or {}
+        c = msg.get("content")
+        if t == "user":
+            if isinstance(c, str) and c.strip():
+                buf = []
+            elif isinstance(c, list) and any(b.get("type") == "text" for b in c if isinstance(b, dict)):
+                buf = []
+        elif t == "assistant" and isinstance(c, list):
+            for b in c:
+                if isinstance(b, dict) and b.get("type") == "text" and b.get("text"):
+                    buf.append(b["text"])
+    return "\n".join(buf)
+
+def lex_scan(text):
+    """hits + witness: НЕ выбрасываем свидетеля — совпавшие спаны едут в кейс
+    (механизм в момент фира держит объяснение — сериализуй, цена разметки ноль)."""
+    hits, witness = [], {}
+    tlow = text.lower()
+    for line in read(TRIG).splitlines():
+        if not line.strip() or line.lstrip().startswith("#"): continue
+        p = line.split("|||")
+        if len(p) < 3: continue
+        cid = p[0].strip()[:2].lstrip("0") or "0"
+        try:
+            spans = []
+            for m in re.finditer(p[1].strip(), tlow):
+                s = m.group(0).strip()
+                if s and s not in spans: spans.append(s)
+                if len(spans) >= WITNESS_CAP: break
+            if spans:
+                if cid not in hits: hits.append(cid)
+                witness.setdefault(cid, []).extend(x for x in spans if x not in witness.get(cid, []))
+        except re.error: continue
+    return hits, witness
+
+def main():
+    try: data = json.load(sys.stdin)
+    except Exception: return
+    if data.get("stop_hook_active"): return          # анти-петля
+    sid = data.get("session_id") or ""
+    tpath = data.get("transcript_path") or ""
+    if not sid or not os.path.exists(tpath) or not os.path.exists(FLOG): return
+
+    reply = last_turn_reply(tpath)
+    if len(reply.split()) < 3: return                # пустой/тривиальный ход — не трогаем канал
+    acted, witness = lex_scan(reply)
+
+    lines = read(FLOG).splitlines()
+    # последняя строка этой сессии; заполняем null ИЛИ обновляем свой же reply-lex
+    # (финальный Stop хода выигрывает целиком — stale witness чистится)
+    for i in range(len(lines) - 1, -1, -1):
+        try: rec = json.loads(lines[i])
+        except Exception: continue
+        if rec.get("sid") != sid: continue
+        if rec.get("acted_on") is not None and rec.get("acted_src") != SRC:
+            return                                   # human-label — не перезаписывать
+        rec["acted_on"] = acted
+        rec["acted_src"] = SRC
+        if witness: rec["witness"] = witness
+        else: rec.pop("witness", None)
+        lines[i] = json.dumps(rec, ensure_ascii=False)
+        break
+    else:
+        return
+
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(FLOG), prefix=".fire-log.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        os.replace(tmp, FLOG)
+    except OSError:
+        try: os.unlink(tmp)
+        except OSError: pass
+
+if __name__ == "__main__":
+    try: main()
+    except Exception: pass                           # хук никогда не ломает сессию

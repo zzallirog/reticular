@@ -1,0 +1,5 @@
+# Reflect server (the harness hooks themselves are Python stdlib only)
+fastapi>=0.110
+uvicorn>=0.27
+# optional: local embeddings + narrator prose go through Ollama (https://ollama.com)
+# Python >= 3.10
