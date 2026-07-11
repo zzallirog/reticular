@@ -30,7 +30,7 @@ phase_a() {
     python3 "$HERE/slim_extract.py" --logs "$CLAUDE/projects" )
 
   say "[3/6] shell-профиль (для M2 — remote-несовместимость)"
-  TOOLSHELL="$(echo "$0" 2>/dev/null || echo sh)"
+  TOOLSHELL="$(basename "${SHELL:-sh}")"
   if [ ! -f "$GLADOS/shell-profile.json" ]; then
     printf '{"tool_shell": "%s", "fish_remotes": []}\n' "$TOOLSHELL" > "$GLADOS/shell-profile.json"
     echo "  записан (fish_remotes пуст → M2 молчит; добавь хосты вручную если есть fish-remote)"
