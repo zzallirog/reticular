@@ -41,6 +41,9 @@ def slim_session(path):
     for line in open(path, encoding="utf-8", errors="ignore"):
         try: d = json.loads(line)
         except Exception: continue
+        # meta-строки (инжекты хуков/команд) и sidechain (сабагенты) — НЕ проза
+        # юзера: харвест на них выучит чужой диалект
+        if d.get("isMeta") or d.get("isSidechain"): continue
         t = d.get("type")
         if t == "user":
             txt = user_text(d.get("message", {}))
