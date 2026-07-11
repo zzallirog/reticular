@@ -114,7 +114,8 @@ def main():
                 for e in ents:
                     s = sum(a*b for a, b in zip(qv, e["vec"]))
                     if s > best_s: best_s, best_c = s, c
-            if best_c and best_s >= DENSE_FLOOR:
+            if best_c and best_s >= DENSE_FLOOR and not (best_c in act_native and _dir == "read"):
+                # тот же мьют, что у лекс-ноги: act-native ядро на read-промпте = ложный фир
                 cand.append((best_c, when_by.get(best_c, "dense-P2P")))
                 sem_hits.append(best_c); dense_scores[best_c] = round(best_s, 4)
         except Exception: pass
