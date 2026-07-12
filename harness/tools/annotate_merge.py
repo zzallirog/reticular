@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# annotate_merge.py (PORTABLE) — мерж LLM-разметки в case-book.jsonl по id.
+# annotate_merge.py (PORTABLE) — merge LLM annotations into case-book.jsonl by id.
 # anno = {"verdicts": {core: genuine|echo|partial}, "case": str, "reflection": str,
 #         "drop": bool, "anno_src": "<judge>-<date>"}
-# ГРАНИЦА: anno = LLM-судья, не human-label; anno_src едет рядом — различай пост-хок.
+# BOUNDARY: anno = LLM judge, not a human label; anno_src travels alongside — tell them apart post-hoc.
 # Usage: annotate_merge.py <annos.json> [--src judge-YYYY-MM-DD]
 import sys, os, json, tempfile
 

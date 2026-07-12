@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# casebook_sidecases.py (PORTABLE) — побочные кучи датасета (цена нуля при готовых вердиктах):
+# casebook_sidecases.py (PORTABLE) — side piles of the dataset (zero cost when verdicts are ready):
 #
-# A) anti-trigger-candidates.jsonl — спан-статистика echo vs genuine per (core, span).
-#    Спан, что летит в echo и (почти) никогда в genuine = кандидат АНТИ-триггера
-#    (негатив на ребре: сузить regex ядра / добавить исключение). ЭТО и есть
-#    трассировка ложных срабатываний до конкретного слова.
-# B) exemplars.jsonl — genuine-кейсы с reflection per-core = few-shot банк:
-#    сырьё для дистилляции дорогого LLM-судьи в дешёвого локального.
+# A) anti-trigger-candidates.jsonl — span statistics of echo vs genuine per (core, span).
+#    A span that keeps flying into echo and (almost) never into genuine = an ANTI-trigger
+#    candidate (a negative on the edge: narrow the core's regex / add an exception). THIS is
+#    exactly the tracing of false positives down to the specific word.
+# B) exemplars.jsonl — genuine cases with reflection per-core = a few-shot bank:
+#    raw material for distilling the expensive LLM judge into a cheap local one.
 #
-# Оба = КАНДИДАТЫ (LLM-судья, не human); врезку/дистилляцию триггерит человек.
+# Both = CANDIDATES (LLM judge, not human); a human triggers the insertion/distillation.
 import os, json
 from collections import defaultdict, Counter
 
@@ -36,7 +36,7 @@ def main():
                                   "prompt": c["prompt"], "witness": wit.get(core, []),
                                   "case": a.get("case", ""), "reflection": a.get("reflection", ""),
                                   "src": "casebook-genuine"})
-    # A: анти-триггер кандидат = echo≥2 и genuine=0 (чистый ложный спан этого ядра)
+    # A: anti-trigger candidate = echo>=2 and genuine=0 (a clean false span of this core)
     cands = []
     for (core, span), st in span_stat.items():
         if st["echo"] >= 2 and st["genuine"] == 0:

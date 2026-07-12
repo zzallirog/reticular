@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# casebook_harvest.py (PORTABLE) — экспорт харвест-кандидатов лексикона из case-book.
-# Сырьё = arrival-miss × anno.genuine: ситуация-ядро РЕАЛЬНО легло в ответ (LLM-судья
-# подтвердил акт), но промпт-лексика его не всплыла → ЭТОТ промпт = дыра лексикона.
-# КАНДИДАТ, не авто-врезка — рекурсию лексикон←acted_on НЕ замыкаем, врезку в
-# core-triggers.txt триггерит человек (см. TUNE.md §рекурсия).
+# casebook_harvest.py (PORTABLE) — export lexicon harvest candidates from the case-book.
+# Source = arrival-miss × anno.genuine: the core situation ACTUALLY landed in the reply
+# (the LLM judge confirmed the act), but the prompt lexicon never surfaced it → THIS prompt
+# is a lexicon gap. CANDIDATE, not an auto-insert — we do NOT close the lexicon←acted_on
+# recursion; a human triggers the insertion into core-triggers.txt (see TUNE.md §recursion).
 #
-# Usage: casebook_harvest.py            # отчёт per-core + harvest-candidates.jsonl
+# Usage: casebook_harvest.py            # per-core report + harvest-candidates.jsonl
 import os, json
 from collections import Counter
 
@@ -19,14 +19,14 @@ def main():
     for l in open(CB, encoding="utf-8"):
         c = json.loads(l)
         if not c.get("arrival_miss"): continue
-        if c.get("voice") == "paste": continue   # paste-boundary: форвард ≠ диалект юзера
+        if c.get("voice") == "paste": continue   # paste-boundary: a forward is not the user's dialect
         v = (c.get("anno") or {}).get("verdicts", {})
         for core in c["arrival_miss"]:
             if v.get(core) != "genuine": continue
             cands.append({
                 "core": core, "id": c["id"], "ts": c["ts"],
-                "prompt": c["prompt"],                       # дыра: эта фраза ДОЛЖНА была зажечь core
-                "witness_reply": (c.get("witness") or {}).get(core, []),  # чем ядро легло в ответ
+                "prompt": c["prompt"],                       # gap: this phrase SHOULD have fired the core
+                "witness_reply": (c.get("witness") or {}).get(core, []),  # how the core landed in the reply
                 "reflection": (c.get("anno") or {}).get("reflection", ""),
                 "src": "casebook-arrival-miss×genuine",
             })
@@ -36,7 +36,7 @@ def main():
             fh.write(json.dumps(x, ensure_ascii=False) + "\n")
     pc = Counter(x["core"] for x in cands)
     print(f"candidates={len(cands)}  per-core={dict(sorted(pc.items(), key=lambda kv: int(kv[0])))}")
-    print(f"→ {OUT}  (кандидаты в лексикон; врезку в core-triggers.txt триггерит человек)")
+    print(f"→ {OUT}  (lexicon candidates; a human triggers the insertion into core-triggers.txt)")
 
 if __name__ == "__main__":
     main()

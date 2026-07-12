@@ -1,7 +1,7 @@
 """reticular Reflect — standalone recap dashboard.
 
 Engine ported from claw-dashboard feat/reflect-recap (cut out of atrium
-2026-07-10 by design: separate админка). Serves the recap API and a
+2026-07-10 by design: a separate admin panel). Serves the recap API and a
 single-file UI. No auth: binds localhost only.
 
 Run:  python3 -m uvicorn server:app --port 8899   (from app/)

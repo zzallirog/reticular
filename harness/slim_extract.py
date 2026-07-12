@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# slim_extract.py — «как брать слимы». Claude Code логи → slim транскрипты.
-# Вход:  ~/.claude/projects/*/*.jsonl  (или --logs DIR)
-# Выход: slims.jsonl (один объект на сессию) + fingerprint.json (агрегат tool-частот).
+# slim_extract.py — "how to take slims". Claude Code logs → slim transcripts.
+# Input:  ~/.claude/projects/*/*.jsonl  (or --logs DIR)
+# Output: slims.jsonl (one object per session) + fingerprint.json (aggregate of tool frequencies).
 #
-# Slim = вырезать ВСЁ кроме сигнала:
-#   • prose  — твои user-турны (нативные слова → ситуация-ядра + лексика)
-#   • tools  — упорядоченные tool_use (name + краткий summary input → model-cores: с чем работаешь)
-# Полезная нагрузка (содержимое файлов, длинные пейлоады) ВЫРЕЗАНА — слим, не дамп.
-# Чистый stdlib. Запускается где угодно с python3.
+# Slim = strip EVERYTHING except signal:
+#   • prose  — your user turns (native words → situation cores + lexicon)
+#   • tools  — ordered tool_use (name + short summary input → model cores: what you work with)
+# The payload (file contents, long payloads) is STRIPPED — a slim, not a dump.
+# Pure stdlib. Runs anywhere with python3.
 import sys, os, json, glob, re, argparse
 
 NOISE = ("<local-command-caveat>", "<command-name>", "Caveat:", "<system-reminder>")
@@ -41,8 +41,8 @@ def slim_session(path):
     for line in open(path, encoding="utf-8", errors="ignore"):
         try: d = json.loads(line)
         except Exception: continue
-        # meta-строки (инжекты хуков/команд) и sidechain (сабагенты) — НЕ проза
-        # юзера: харвест на них выучит чужой диалект
+        # meta lines (hook/command injections) and sidechain (subagents) are NOT user
+        # prose: harvesting them would learn someone else's dialect
         if d.get("isMeta") or d.get("isSidechain"): continue
         t = d.get("type")
         if t == "user":
@@ -65,13 +65,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--logs", default=os.path.expanduser("~/.claude/projects"))
     ap.add_argument("--out", default="slims.jsonl")
-    ap.add_argument("--min-tools", type=int, default=3, help="скип сессий тоньше N тулов")
+    ap.add_argument("--min-tools", type=int, default=3, help="skip sessions thinner than N tools")
     a = ap.parse_args()
 
     files = sorted(glob.glob(os.path.join(a.logs, "*", "*.jsonl")) +
                    glob.glob(os.path.join(a.logs, "*.jsonl")))
     if not files:
-        print(f"НЕТ логов в {a.logs} — claude-kit стоял? есть сессии?", file=sys.stderr)
+        print(f"NO logs in {a.logs} — was claude-kit installed? are there any sessions?", file=sys.stderr)
         sys.exit(1)
 
     agg, kept = {}, 0
@@ -88,8 +88,8 @@ def main():
     fp = {"sessions": kept, "tool_freq": dict(sorted(agg.items(), key=lambda x: -x[1])),
           "total_tools": sum(agg.values())}
     json.dump(fp, open("fingerprint.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-    print(f"slims: {kept} сессий → {a.out}")
-    print(f"fingerprint (с чем работаешь): {json.dumps(fp['tool_freq'], ensure_ascii=False)}")
+    print(f"slims: {kept} sessions → {a.out}")
+    print(f"fingerprint (what you work with): {json.dumps(fp['tool_freq'], ensure_ascii=False)}")
 
 if __name__ == "__main__":
     main()

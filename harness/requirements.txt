@@ -1,22 +1,22 @@
-# glados-portable — зависимости. Философия: МИНИМУМ, чтобы запускалось где угодно.
-# Хуки и slim-экстракт = чистый python3 stdlib + urllib (НИКАКИХ pip-пакетов нужно для рантайма).
+# glados-portable — dependencies. Philosophy: MINIMAL, so it runs anywhere.
+# Hooks and the slim extractor = pure python3 stdlib + urllib (NO pip packages needed at runtime).
 #
-# ── ОБЯЗАТЕЛЬНО ──
+# ── REQUIRED ──
 # python3            >= 3.8   (stdlib: json, re, hashlib, urllib, glob, datetime)
-# Claude Code        (claude-kit уже стоит — этот kit его ДОПОЛНЯЕТ)
-# ollama             (для эмбеддингов recall-индекса)  → https://ollama.com
-#   embed-модель:    embeddinggemma     (primary — мультиязычная, RU+EN+любой)
-#                    ИЛИ nomic-embed-text (fallback, англо-центрична)
-#   bootstrap.sh сам делает: ollama pull embeddinggemma
+# Claude Code        (claude-kit already installed — this kit EXTENDS it)
+# ollama             (for recall-index embeddings)  → https://ollama.com
+#   embed model:     embeddinggemma     (primary — multilingual, RU+EN+anything)
+#                    OR nomic-embed-text (fallback, English-centric)
+#   bootstrap.sh does it for you: ollama pull embeddinggemma
 #
-# ── ОПЦИОНАЛЬНО (только для офлайн-eval / тюнинга, НЕ для рантайма хуков) ──
-# numpy              — если гоняешь build_embeddings.py в batch-режиме (иначе чистый python)
+# ── OPTIONAL (offline eval / tuning only, NOT for hook runtime) ──
+# numpy              — if you run build_embeddings.py in batch mode (otherwise pure python)
 #   pip install numpy
 #
-# ── ПРОВЕРКА СРЕДЫ (bootstrap печатает) ──
+# ── ENVIRONMENT CHECK (printed by bootstrap) ──
 #   python3 --version
 #   command -v ollama && ollama list
-#   ls ~/.claude/projects/   # есть ли логи для слим-экстракции
+#   ls ~/.claude/projects/   # any logs available for slim extraction?
 #
-# Намеренно НЕТ: torch, transformers, sentence-transformers, langchain.
-# Эмбеддинг идёт через ollama HTTP (127.0.0.1:11434) — один процесс, переносимо, без GPU-ада.
+# Deliberately ABSENT: torch, transformers, sentence-transformers, langchain.
+# Embedding goes through ollama HTTP (127.0.0.1:11434) — one process, portable, no GPU hell.

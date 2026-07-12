@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# compile_cases.py (PORTABLE) — fire-log (ЛОГ) → case-book.jsonl (ДАТАСЕТ).
-# Лог = поток ходов; датасет = кейсы с генеалогией. Кейс = ход с acted_on≠∅:
-# промпт, реплай-выдержка, ядра, witness (спаны-свидетели), направление, соурс.
-# Механическая часть здесь; семантическая (verdict genuine/echo/partial) — LLM-судья,
-# мержится назад полем "anno" (annotate_merge.py). См. TUNE.md — весь цикл.
+# compile_cases.py (PORTABLE) — fire-log (LOG) → case-book.jsonl (DATASET).
+# Log = stream of turns; dataset = cases with genealogy. A case = a turn with acted_on≠∅:
+# prompt, reply excerpt, cores, witness (witness spans), direction, source.
+# The mechanical part is here; the semantic part (verdict genuine/echo/partial) is the
+# LLM judge, merged back via the "anno" field (annotate_merge.py). See TUNE.md for the full cycle.
 #
-# ⚠ Перезаписывает case-book.jsonl — после recompile повторить merge anno.
+# ⚠ Overwrites case-book.jsonl — after a recompile, re-run the anno merge.
 import os, json
 from backfill_acted import turns_of, read, transcript_of
 
@@ -14,11 +14,11 @@ G = os.path.join(H, ".claude/glados")
 FLOG = os.path.join(G, "fire-log.jsonl")
 TRIG = os.path.join(G, "core-triggers.txt")
 OUT = os.path.join(G, "case-book.jsonl")
-EXC = 700  # реплай-выдержка
+EXC = 700  # reply excerpt
 
 def situation_cores():
-    """SITU = ядра, у которых ЕСТЬ лексика в core-triggers.txt (ситуация-ядра).
-    Диспозиция-ядра в триггерах не живут (они пол, не матрица) — их тут и нет."""
+    """SITU = cores that HAVE lexicon in core-triggers.txt (situation cores).
+    Disposition cores do not live in the triggers (they are the floor, not the matrix) — so they are absent here."""
     situ = set()
     for line in read(TRIG).splitlines():
         if not line.strip() or line.lstrip().startswith("#"): continue
@@ -29,7 +29,7 @@ def situation_cores():
 
 def main():
     SITU = situation_cores()
-    seen_ids = {}   # ts-коллизия (2 хода в одну секунду) → суффикс, иначе merge anno по id бьёт оба кейса
+    seen_ids = {}   # ts collision (2 turns in the same second) → suffix, otherwise anno merge by id hits both cases
     rows = [json.loads(l) for l in read(FLOG).splitlines() if l.strip()]
     by_sid = {}
     for r in rows:
@@ -48,8 +48,8 @@ def main():
             for j in range(tp, len(turns)):
                 if turns[j][0][:len(pfx)] == pfx:
                     reply = turns[j][1]; tp = j + 1; break
-            # arrival-miss: ситуация-ядро ЛЕГЛО в ответ (acted_on), но промпт-нога его
-            # НЕ всплыла при пустой ситуация-лексике → дыра лексикона промпт-стороны.
+            # arrival-miss: a situation core LANDED in the reply (acted_on), but its prompt-side leg
+            # did NOT surface while the situation lexicon was empty → a hole in the prompt-side lexicon.
             arrival_miss = ([c for c in r["acted_on"] if c in SITU and c not in r.get("surfaced", [])]
                             if r.get("situ_lex_empty") else [])
             cid_ = f"{sid[:8]}·{r['ts']}"
@@ -62,15 +62,15 @@ def main():
                 "prompt": r.get("prompt", ""),
                 "reply_excerpt": reply[:EXC],
                 "acted_on": r["acted_on"],
-                "arrival_miss": arrival_miss,   # харвест-соурс №1 (фильтруй по anno genuine!)
-                "witness": r.get("witness"),          # спаны реплая (чем зажглось)
-                "wit_prompt": r.get("wit_prompt"),    # спаны промпта (lex-нога входа)
+                "arrival_miss": arrival_miss,   # harvest source #1 (filter by anno genuine!)
+                "witness": r.get("witness"),          # reply spans (what fired it)
+                "wit_prompt": r.get("wit_prompt"),    # prompt spans (the input's lex leg)
                 "lex": r.get("lex", []), "sem": r.get("sem", []),
                 "dir": r.get("dir"),
-                "surfaced": r.get("surfaced", []),    # что реально всплыло хуком
-                "source": r.get("acted_src"),         # как кейс попал в датасет
+                "surfaced": r.get("surfaced", []),    # what the hook actually surfaced
+                "source": r.get("acted_src"),         # how the case entered the dataset
                 "voice": r.get("voice"),
-                "anno": r.get("anno"),                # LLM-слой (None до разметки)
+                "anno": r.get("anno"),                # LLM layer (None until annotated)
             })
     cases.sort(key=lambda c: c["ts"])
     with open(OUT, "w", encoding="utf-8") as fh:

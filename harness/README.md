@@ -1,78 +1,83 @@
-# glados-portable v2 — активный харнес из СВОИХ логов + тюн ложных срабатываний
+# glados-portable v2 — an active harness built from YOUR OWN logs + a false-fire tune loop
 
-Это не «чьи-то ядра». Ядра нельзя скопировать — они грани конкретного человека. Это
-**метод, что строит ТВОИ ядра из ТВОИХ логов Claude Code**, и — новое в v2 — **цикл,
-что трассирует ложные срабатывания и тюнит лексику по датасету**, не по вкусу.
+This is not "someone else's cores". Cores can't be copied — they are the facets of one
+specific person. This is a **method that builds YOUR cores from YOUR Claude Code logs**,
+and — new in v2 — a **loop that traces false fires and tunes the lexicon against a dataset**,
+not against taste.
 
-**Если кит ставит агент (Claude/Opus): начни с `docs/INSTALL-AGENT.md`.**
+**If a kit installs the agent (Claude/Opus): start with `docs/INSTALL-AGENT.md`.**
 
-Читает `~/.claude/projects/*/*.jsonl` и собирает:
+It reads `~/.claude/projects/*/*.jsonl` and assembles:
 
-1. **Ситуация-ядра** — грани того, КАК ты думаешь, из твоей прозы (промптов).
-2. **Лексику** — твои нативные слова-триггеры (recall цепляется к ним, не к абстракции).
-3. **model-cores** — грани того, КАК действует агент, из **tool-call'ов** (где циклит,
-   где спотыкается). Источник = выходы, не интроспекция.
-4. **Эмбеддинг-индекс** — чтобы recall-числа **воспроизводились на твоём вульте**.
-5. **Четыре хука**:
-   - `ida-floor` (SessionStart) — инжектит ТЕЛА диспозиция-граней при старте (пол: то, что
-     применимо каждый ход, лексикой не диспетчится — оно просто присутствует);
-   - `ida-attest` (UserPromptSubmit) — зажигает ситуация-ядра по промпту: лексика-нога +
-     dense-backstop, третья ось act/read, witness-спаны, fire-log;
-   - `ida-act` (Pre/PostToolUse) — парсит вызовы агента, ловит мод-ошибки детерминированно
-     (edit-без-read, remote-shell, error-loop, запись-в-substrate);
-   - `ida-land` (Stop) — доливает в fire-log, ЧТО реально легло в ответ (acted_on+witness).
-6. **Casebook-цикл** (`tools/` + `workflow/annotate.workflow.js`) — fire-log → датасет →
-   LLM-судья → кандидаты триггеров и АНТИ-триггеров. Финальный тюн: `docs/TUNE.md`.
+1. **Situation cores** — facets of HOW you think, from your prose (prompts).
+2. **Lexicon** — your native trigger words (recall latches onto them, not onto abstraction).
+3. **model-cores** — facets of HOW the agent acts, from **tool-calls** (where it loops,
+   where it stumbles). The source is outputs, not introspection.
+4. **Embedding index** — so recall numbers **reproduce on your own vault**.
+5. **Four hooks:**
+   - `ida-floor` (SessionStart) — injects the BODIES of the disposition facets at start
+     (the floor: what applies every turn, not dispatched by lexicon — it is simply present);
+   - `ida-attest` (UserPromptSubmit) — fires situation cores off the prompt: lexicon leg +
+     dense backstop, the third act/read axis, witness spans, fire-log;
+   - `ida-act` (Pre/PostToolUse) — parses the agent's calls, catches mode errors
+     deterministically (edit-without-read, remote-shell, error-loop, write-to-substrate);
+   - `ida-land` (Stop) — appends to the fire-log WHAT actually landed in the reply
+     (acted_on + witness).
+6. **Casebook loop** (`tools/` + `workflow/annotate.workflow.js`) — fire-log → dataset →
+   LLM judge → candidate triggers and ANTI-triggers. Final tune: `docs/TUNE.md`.
 
-## Идеология (одна строка)
+## Idea (one line)
 
-Важное нельзя детектить дешёвой семантикой в query-time. **Детектор слепой/внешний читает
-ТЕЛО на границе.** Вход (проза) нерегулярен → нужна твоя лексика. Выход (tool-call)
-регулярен → детерминированный парсер точен. А ложные фиры лексики не лечатся механикой —
-их судит LLM по датасету со свидетелями (witness-спанами), и правку всегда делает человек.
+What matters can't be detected with cheap semantics at query-time. **A blind/external
+detector reads the BODY at the boundary.** The input (prose) is irregular → you need your
+lexicon. The output (tool-call) is regular → a deterministic parser is precise. And false
+lexicon fires aren't fixed by mechanics — an LLM judges them against a dataset with witnesses
+(witness spans), and a human always makes the edit.
 
-## Один проход
+## One pass
 
 ```sh
-sh bootstrap.sh          # фаза A: deps + slim-экстракт + профиль
-# → в Claude Code: «прогони workflow/install.workflow.js»
-#   (Sonnet: обзор+паттерны → Opus: свип+эмерж+сборка матрицы → сверка: shadow-фиры + ida-счётчик)
-# перезапусти Claude Code
+sh bootstrap.sh          # phase A: deps + slim-extract + profile
+# → in Claude Code: "run workflow/install.workflow.js"
+#   (Sonnet: overview + patterns → Opus: sweep + emerge + matrix build → verify: shadow-fires + ida-counter)
+# restart Claude Code
 ```
 
-Ручной fallback (без Workflow-тула): `harvest.workflow.js` → emerge.json → `sh bootstrap.sh --finish`.
+Manual fallback (no Workflow tool): `harvest.workflow.js` → emerge.json → `sh bootstrap.sh --finish`.
 
-Через 1-2 недели жизни — финальный тюн: `docs/TUNE.md`.
+After 1-2 weeks of live use — the final tune: `docs/TUNE.md`.
 
-## Файлы
+## Files
 
-- `docs/INSTALL-AGENT.md` — бриф агенту-инсталлеру: порядок, проверки, ввод владельца в курс.
-- `docs/ATLAS-LAYOUT.md` — раскладка памяти/проектов/feedbacks под лекс-матрицу
-  (основа: https://github.com/zzallirog/agent-atlas — склонируй, это канон раскладки).
-- `docs/TUNE.md` — цикл трассировки ложных фиров (arrival-miss / echo / анти-триггеры).
-- `bootstrap.sh` — один проход, всё связывает (идемпотентно, POSIX sh).
-- `slim_extract.py` — `~/.claude/projects/*/*.jsonl` → slim tool-call + prose транскрипты.
-- `workflow/install.workflow.js` — инсталлятор одним воркфлоу: обзор→паттерны (Sonnet) →
-  свип+эмерж+сборка (Opus) → сверка (shadow-фиры + ida-счётчик + аудит течей).
-- `workflow/harvest.workflow.js` — 2 классификатора последовательно (ручной fallback).
-- `workflow/annotate.workflow.js` — веер LLM-судей: verdict genuine/echo/partial per (кейс, ядро).
-- `build_cores.py` — эмерж → `cores/` + `core-triggers.txt` + `model-cores/`.
-- `build_embeddings.py` — нативные чанки → `core_p2p.json` (recall, воспроизводимо).
-- `hooks/ida-floor`, `hooks/ida-attest`, `hooks/ida-act`, `hooks/ida-land` — портированные,
-  без машино-специфики.
+- `docs/INSTALL-AGENT.md` — brief for the installer agent: order, checks, bringing the owner up to speed.
+- `docs/ATLAS-LAYOUT.md` — memory/projects/feedbacks layout under the lexicon matrix
+  (basis: https://github.com/zzallirog/agent-atlas — clone it, this is the canonical layout).
+- `docs/TUNE.md` — the false-fire tracing loop (arrival-miss / echo / anti-triggers).
+- `bootstrap.sh` — one pass, ties it all together (idempotent, POSIX sh).
+- `slim_extract.py` — `~/.claude/projects/*/*.jsonl` → slim tool-call + prose transcripts.
+- `workflow/install.workflow.js` — installer in a single workflow: overview → patterns (Sonnet) →
+  sweep + emerge + build (Opus) → verify (shadow-fires + ida-counter + leak audit).
+- `workflow/harvest.workflow.js` — 2 classifiers in sequence (manual fallback).
+- `workflow/annotate.workflow.js` — fan-out of LLM judges: verdict genuine/echo/partial per (case, core).
+- `build_cores.py` — emerge → `cores/` + `core-triggers.txt` + `model-cores/`.
+- `build_embeddings.py` — native chunks → `core_p2p.json` (recall, reproducible).
+- `hooks/ida-floor`, `hooks/ida-attest`, `hooks/ida-act`, `hooks/ida-land` — ported,
+  no machine-specifics.
 - `tools/backfill_acted.py` · `tools/compile_cases.py` · `tools/annotate_merge.py` ·
-  `tools/casebook_harvest.py` · `tools/casebook_sidecases.py` — casebook-цепь (см. TUNE.md).
+  `tools/casebook_harvest.py` · `tools/casebook_sidecases.py` — the casebook chain (see TUNE.md).
 
-## «Числа воспроизводятся»
+## "The numbers reproduce"
 
-Метод фальсифицируем: на твоём вульте recall@k печатается self-test'ом; echo-rate и
-arrival-miss считаются из case-book. Если сигнал есть — харвест поднимает fire-rate над
-null, тюн опускает echo между раундами. Если нет — честный ноль, не вайб. Это и есть
-перенос: не магнитуда чужого вульта, а **метод, дающий число на твоём**.
+The method is falsifiable: on your vault recall@k is printed by a self-test; echo-rate and
+arrival-miss are counted from the case-book. If there's signal — harvest lifts fire-rate above
+null, tune lowers echo between rounds. If there isn't — an honest zero, not a vibe. That is the
+transfer: not the magnitude of someone else's vault, but **a method that yields a number on yours**.
 
-## Границы (что кит обещает и чего нет)
+## Boundaries (what the kit promises and what it doesn't)
 
-- Референс-числа владельца метода (152 сессии): лексический recall 7/7 на held-out;
-  echo-rate сырого reply-lex оракула = 51% → потому судья и фильтр genuine обязательны.
-- Лексика-нога несёт ~95% работы; без ollama dense-нога молчит — это режим, не поломка.
-- Авто-тюн лексики намеренно НЕ замкнут: кандидаты — машина, врезка — человек.
+- The method author's reference numbers (152 sessions): lexical recall 7/7 on held-out;
+  echo-rate of the raw reply-lex oracle = 51% → which is why the judge and the genuine filter
+  are mandatory.
+- The lexicon leg carries ~95% of the work; without ollama the dense leg stays silent — that's
+  a mode, not a breakage.
+- Auto-tuning the lexicon is deliberately NOT closed: candidates are the machine's, the edit is the human's.

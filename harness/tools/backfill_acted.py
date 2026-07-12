@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# backfill_acted.py (PORTABLE) — ретроактивный landing-oracle.
-# Строки fire-log до включения ida-land висят acted_on=null. Этот скрипт гонит ТОТ ЖЕ
-# оракул (reply-lex, core-triggers.txt) по историческим транскриптам и back-fill'ит
-# acted_on + witness (совпавшие спаны per-core).
+# backfill_acted.py (PORTABLE) — retroactive landing oracle.
+# fire-log rows from before ida-land was enabled sit at acted_on=null. This script runs the SAME
+# oracle (reply-lex, core-triggers.txt) over historical transcripts and back-fills
+# acted_on + witness (the matched spans per core).
 #
-# ЧЕСТНАЯ ГРАНИЦА: acted_src="reply-lex-backfill" — отличим от живого "reply-lex"
-# (Stop-hook) и от human-label. Human-label НЕ перезаписывается.
-# acted_on=[] = «сканировал, ядра не легли»; null остаётся = оракул не дошёл.
+# HONEST BOUNDARY: acted_src="reply-lex-backfill" — distinguishable from the live "reply-lex"
+# (Stop-hook) and from a human label. A human label is NOT overwritten.
+# acted_on=[] = "scanned, no cores landed"; null stays = the oracle never reached it.
 #
-# Usage: backfill_acted.py [--apply]   (без флага = dry-run отчёт)
+# Usage: backfill_acted.py [--apply]   (no flag = dry-run report)
 import sys, os, json, re, glob, tempfile
 from collections import Counter
 
@@ -26,7 +26,7 @@ def read(p):
     except OSError: return ""
 
 def transcript_of(sid):
-    """Auto-discover: транскрипт сессии где бы ни лежал проект (~/.claude/projects/*/sid.jsonl)."""
+    """Auto-discover: the session transcript wherever the project lives (~/.claude/projects/*/sid.jsonl)."""
     g = glob.glob(os.path.join(PROJ, "*", sid + ".jsonl"))
     return g[0] if g else None
 
@@ -42,7 +42,7 @@ def load_triggers():
     return trig
 
 def lex_scan_witness(text, trig):
-    """Как ida-land lex_scan, но по компилированным триггерам: {core: [спаны]}."""
+    """Like ida-land lex_scan, but over compiled triggers: {core: [spans]}."""
     tlow = text.lower()
     hits, witness = [], {}
     for cid, rx in trig:
@@ -57,7 +57,7 @@ def lex_scan_witness(text, trig):
     return hits, witness
 
 def turns_of(tpath):
-    """[(user_text, reply_text)] — сегментация как в ida-land, но по всем ходам."""
+    """[(user_text, reply_text)] — segmentation like ida-land, but over every turn."""
     turns, cur, buf = [], None, []
     for line in read(tpath).splitlines():
         try: row = json.loads(line)
@@ -106,7 +106,7 @@ def main():
         if not tpath:
             stats["no_transcript"] += len(nulls); continue
         turns = turns_of(tpath)
-        tp = 0  # монотонный указатель: fire-log и транскрипт оба хронологичны
+        tp = 0  # monotonic pointer: fire-log and transcript are both chronological
         for i, r in nulls:
             pfx = r.get("prompt", "")
             hit = None
@@ -134,7 +134,7 @@ def main():
     print(f"rows={len(rows)}  " + "  ".join(f"{k}={v}" for k, v in sorted(stats.items())))
     print("cores:", dict(filled_cores.most_common()))
     if not apply:
-        print("(dry-run — fire-log НЕ переписан; --apply чтобы записать)")
+        print("(dry-run — fire-log NOT rewritten; use --apply to write)")
         return
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(FLOG), prefix=".fire-log.")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:

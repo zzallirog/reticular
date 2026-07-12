@@ -1,61 +1,62 @@
-# INSTALL-AGENT — бриф агенту-инсталлеру (Claude/Opus, читай это первым)
+# INSTALL-AGENT — brief for the installer agent (Claude/Opus, read this first)
 
-Ты ставишь этот кит человеку, который его НЕ писал. Твоя работа: заинсталлировать,
-проверить работоспособность числом, ввести владельца в курс дела. Не больше.
+You're installing this kit for a person who did NOT write it. Your job: install it,
+verify it works with a number, bring the owner up to speed. Nothing more.
 
-## Что это (одним абзацем — перескажи владельцу своими словами)
+## What this is (one paragraph — retell it to the owner in your own words)
 
-Активный харнес поверх Claude Code. Из ЕГО логов эмерджатся «ядра» — грани того, как он
-думает и действует, каждое с нативной лексикой-триггерами. Хук на каждом промпте (~50
-токенов инжекта) зажигает релевантные ядра: «эта ситуация — вот известные моды провала,
-перепроверь». Это решает lost-in-the-middle (напоминание в моменте, не в начале контекста)
-и ловит «агент смотрит не туда» на ПЕРВОМ ходу, а не через 5 сообщений легаси. Второй
-контур (fire-log → casebook → судья) трассирует ложные срабатывания и тюнит лексику.
+An active harness on top of Claude Code. From HIS logs, "cores" emerge — facets of how he
+thinks and acts, each with a native trigger lexicon. A hook on every prompt (~50 tokens of
+injection) fires the relevant cores: "this situation — here are the known failure modes,
+recheck". This solves lost-in-the-middle (a reminder in the moment, not at the start of
+context) and catches "the agent is looking the wrong way" on the FIRST turn, not five
+messages of legacy later. A second loop (fire-log → casebook → judge) traces false fires
+and tunes the lexicon.
 
-## Порядок установки
+## Install order
 
-1. **Прочти сам:** README.md → docs/ATLAS-LAYOUT.md → docs/TUNE.md. Не ставь вслепую.
-2. **Раскладка до харнеса.** Если у владельца память/проекты не разложены — сначала
-   ATLAS-LAYOUT.md (клон agent-atlas, порядок в MEMORY.md и feedbacks). Харвест берёт
-   лексику из логов; мусорная раскладка = мусорные ядра.
-3. **Фаза A:** `sh bootstrap.sh` — deps, slim-экстракт его логов, профиль. Проверь вывод:
-   slims.jsonl непустой (иначе логов мало — честно скажи, что харнесу не из чего строиться;
-   порог здравого смысла ~20 сессий).
-4. **Инсталлятор-воркфлоу (предпочтительный путь):** прогони `workflow/install.workflow.js`.
-   Он сам держит пропорции моделей: Sonnet = обзор корпуса + паттерн-ноги (механика),
-   Opus = полный свип + эмерж + сборка лекс-матрицы (bootstrap --finish внутри), затем
-   сверка: shadow-прогон held-out промптов через ЖИВОЙ хук + ida-счётчик (fire-log вырос
-   ровно на N?) + Opus-аудит течей. Верни владельцу отчёт: ядра (пусть вычеркнет чужое),
-   fire-rate, течи. Fallback без Workflow-тула: `workflow/harvest.workflow.js` руками →
-   emerge.json сам → `sh bootstrap.sh --finish` → проверка ниже.
-5. **Перезапуск Claude Code** (хуки грузятся на старте).
+1. **Read it yourself:** README.md → docs/ATLAS-LAYOUT.md → docs/TUNE.md. Don't install blind.
+2. **Layout before the harness.** If the owner's memory/projects aren't laid out — do
+   ATLAS-LAYOUT.md first (clone agent-atlas, ordering in MEMORY.md and feedbacks). Harvest pulls
+   the lexicon from the logs; a junk layout = junk cores.
+3. **Phase A:** `sh bootstrap.sh` — deps, slim-extract of his logs, profile. Check the output:
+   slims.jsonl is non-empty (otherwise there aren't enough logs — say honestly that the harness
+   has nothing to build from; a common-sense threshold is ~20 sessions).
+4. **Installer workflow (preferred path):** run `workflow/install.workflow.js`.
+   It holds the model proportions itself: Sonnet = corpus overview + pattern legs (mechanics),
+   Opus = full sweep + emerge + lexicon-matrix build (bootstrap --finish inside), then
+   verify: a shadow-run of held-out prompts through the LIVE hook + ida-counter (did the fire-log
+   grow by exactly N?) + Opus leak audit. Return a report to the owner: cores (let him strike out
+   what isn't his), fire-rate, leaks. Fallback without the Workflow tool: `workflow/harvest.workflow.js`
+   by hand → emerge.json yourself → `sh bootstrap.sh --finish` → the check below.
+5. **Restart Claude Code** (hooks load at start).
 
-## Проверка работоспособности (число, не вайб)
+## Verifying it works (a number, not a vibe)
 
-- Скажи владельцу написать 3-5 промптов его обычными словами по живой теме →
-  в контексте должен появиться блок `<ida-attest>` с ядрами. Нет фира на явном
-  триггер-слове → смотри `~/.claude/glados/core-triggers.txt` (regex собрался?).
-- `tail -3 ~/.claude/glados/fire-log.jsonl` — строки пишутся, поля surfaced/lex/dir/voice
-  заполнены, acted_on проставляется после ответа (ida-land).
-- Правка файла без Read → нота M1 от ida-act.
-- Если ollama нет — dense-нога молчит, это ДОКУМЕНТИРОВАННЫЙ режим, не поломка
-  (лексика-нога несёт ~95% работы).
+- Tell the owner to write 3-5 prompts in his usual words on a live topic →
+  an `<ida-attest>` block with cores should appear in the context. No fire on an explicit
+  trigger word → check `~/.claude/glados/core-triggers.txt` (did the regex assemble?).
+- `tail -3 ~/.claude/glados/fire-log.jsonl` — lines are being written, the surfaced/lex/dir/voice
+  fields are filled, acted_on is set after the reply (ida-land).
+- An edit to a file without a Read → an M1 note from ida-act.
+- If ollama isn't present — the dense leg stays silent, this is a DOCUMENTED mode, not a breakage
+  (the lexicon leg carries ~95% of the work).
 
-## Ввод в курс дела (5 минут владельцу)
+## Bringing them up to speed (5 minutes for the owner)
 
-- Ядра — это ЕГО грани, не универсальные правила. Файлы в `~/.claude/overlays/cores/` —
-  читать и править руками, это живой текст.
-- Первые 1-2 недели харнес сырой: лексика недобирает и пере-фирит. Это норма —
-  цикл тюна (docs/TUNE.md) для того и существует. Раньше ~50 содержательных ходов
-  тюнить не из чего.
-- Ложный фир — не «выключить харнес», а строка в датасет: он превращается в
-  анти-триггер на шаге тюна.
-- Правки лексики — всегда руками владельца (рекурсия авто-тюна замкнёт шум).
+- Cores are HIS facets, not universal rules. The files in `~/.claude/overlays/cores/` are
+  read and edited by hand, it's live text.
+- The first 1-2 weeks the harness is raw: the lexicon under-catches and over-fires. That's normal —
+  the tune loop (docs/TUNE.md) exists for exactly that. Earlier than ~50 substantive turns there's
+  nothing to tune from.
+- A false fire isn't "turn the harness off" — it's a line for the dataset: it becomes an
+  anti-trigger at the tune step.
+- Lexicon edits — always by the owner's hand (auto-tune recursion converges on noise).
 
-## Чего НЕ делать
+## What NOT to do
 
-- НЕ копируй ядра/лексику из чужого вульта (в том числе из примеров) — они грани
-  конкретного человека, на другом человеке это шум.
-- НЕ включай deny-режим ida-act на старте (advisory до первых недель act-log).
-- НЕ правь core-triggers.txt сам без показа владельцу.
-- НЕ обещай магии: если self-test даёт честный ноль — так и доложи.
+- Do NOT copy cores/lexicon from someone else's vault (including from the examples) — they are the
+  facets of one specific person; on a different person it's noise.
+- Do NOT enable ida-act's deny mode at start (advisory until the first weeks of act-log).
+- Do NOT edit core-triggers.txt yourself without showing the owner.
+- Do NOT promise magic: if the self-test gives an honest zero — report it as such.

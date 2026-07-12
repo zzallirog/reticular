@@ -1,9 +1,9 @@
 #!/bin/sh
-# bootstrap.sh — построить glados-харнес из ТВОИХ логов, один проход. Запускать ПОСЛЕ claude-kit.
-# Идемпотентно, auto-detect OS/shell/ollama. POSIX sh.
+# bootstrap.sh — build the glados harness from YOUR logs, one pass. Run AFTER claude-kit.
+# Idempotent, auto-detects OS/shell/ollama. POSIX sh.
 #
-#   sh bootstrap.sh            # фаза A: deps + slim-экстракт + профиль. Печатает шаг харвеста.
-#   sh bootstrap.sh --finish   # фаза B: после того как Claude записал emerge.json — собрать всё.
+#   sh bootstrap.sh            # phase A: deps + slim extract + profile. Prints the harvest step.
+#   sh bootstrap.sh --finish   # phase B: after Claude has written emerge.json — assemble everything.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CLAUDE="$HOME/.claude"
@@ -14,64 +14,64 @@ EMB="${GLADOS_EMBED:-embeddinggemma}"
 say() { printf '\033[1m%s\033[0m\n' "$*"; }
 
 phase_a() {
-  say "[1/6] среда"
-  command -v python3 >/dev/null || { echo "нет python3 — поставь"; exit 1; }
+  say "[1/6] environment"
+  command -v python3 >/dev/null || { echo "no python3 — install it"; exit 1; }
   python3 --version
   if command -v ollama >/dev/null; then
     ollama list 2>/dev/null | grep -q "$EMB" || { say "  pull $EMB"; ollama pull "$EMB" || \
-      { say "  $EMB не тянется → fallback nomic-embed-text"; ollama pull nomic-embed-text && EMB=nomic-embed-text; }; }
+      { say "  $EMB won't pull → fallback nomic-embed-text"; ollama pull nomic-embed-text && EMB=nomic-embed-text; }; }
   else
-    echo "  ⚠ ollama нет — recall-индекс пропустится (хуки M1/M3 всё равно работают). https://ollama.com"
+    echo "  ⚠ no ollama — recall index will be skipped (M1/M3 hooks still work). https://ollama.com"
   fi
 
-  say "[2/6] slim-экстракт логов"
-  test -d "$CLAUDE/projects" || { echo "нет $CLAUDE/projects — claude-kit стоял? есть сессии?"; exit 1; }
+  say "[2/6] slim log extract"
+  test -d "$CLAUDE/projects" || { echo "no $CLAUDE/projects — was claude-kit installed? are there sessions?"; exit 1; }
   ( cd "$GLADOS" 2>/dev/null || { mkdir -p "$GLADOS"; cd "$GLADOS"; }
     python3 "$HERE/slim_extract.py" --logs "$CLAUDE/projects" )
 
-  say "[3/6] shell-профиль (для M2 — remote-несовместимость)"
+  say "[3/6] shell profile (for M2 — remote incompatibility)"
   TOOLSHELL="$(basename "${SHELL:-sh}")"
   if [ ! -f "$GLADOS/shell-profile.json" ]; then
     printf '{"tool_shell": "%s", "fish_remotes": []}\n' "$TOOLSHELL" > "$GLADOS/shell-profile.json"
-    echo "  записан (fish_remotes пуст → M2 молчит; добавь хосты вручную если есть fish-remote)"
+    echo "  written (fish_remotes empty → M2 stays silent; add hosts manually if you have a fish remote)"
   fi
   [ -f "$GLADOS/act-deny.json" ] || echo '{"M1": false, "M2": false, "M3": false}' > "$GLADOS/act-deny.json"
 
   cat <<EOF
 
 ────────────────────────────────────────────────────────────
-ФАЗА A готова. slims.jsonl + fingerprint.json в $GLADOS
+PHASE A done. slims.jsonl + fingerprint.json in $GLADOS
 
-ШАГ ХАРВЕСТА (в Claude Code, один раз):
-  «прогони $HERE/workflow/harvest.workflow.js на $GLADOS/slims.jsonl,
-   эмерджи cores → $GLADOS/emerge.json»
-  (2 Sonnet'а классифицируют последовательно, движок синтезирует)
+HARVEST STEP (in Claude Code, one time):
+  "run $HERE/workflow/harvest.workflow.js on $GLADOS/slims.jsonl,
+   emerge cores → $GLADOS/emerge.json"
+  (2 Sonnets classify in sequence, the engine synthesizes)
 
-Потом заверши сборку:
+Then finish the build:
   sh bootstrap.sh --finish
 ────────────────────────────────────────────────────────────
 EOF
 }
 
 phase_b() {
-  test -f "$GLADOS/emerge.json" || { echo "нет $GLADOS/emerge.json — сделай шаг харвеста (см. фазу A)"; exit 1; }
-  say "[4/6] материализую ядра"
+  test -f "$GLADOS/emerge.json" || { echo "no $GLADOS/emerge.json — do the harvest step (see phase A)"; exit 1; }
+  say "[4/6] materializing cores"
   python3 "$HERE/build_cores.py" --emerge "$GLADOS/emerge.json" --base "$CLAUDE"
 
-  say "[5/6] recall-индекс"
+  say "[5/6] recall index"
   if command -v ollama >/dev/null && ollama list 2>/dev/null | grep -q "$EMB"; then
     GLADOS_EMBED="$EMB" python3 "$HERE/build_embeddings.py" \
-      --triggers "$GLADOS/core-triggers.txt" --out "$GLADOS/core_p2p.json" || echo "  (embed пропущен)"
-  else echo "  ollama/$EMB нет → recall-индекс пропущен (лексика-нога всё равно фирит)"; fi
+      --triggers "$GLADOS/core-triggers.txt" --out "$GLADOS/core_p2p.json" || echo "  (embed skipped)"
+  else echo "  no ollama/$EMB → recall index skipped (the lexicon leg still fires)"; fi
 
-  say "[6/6] хуки + settings.json"
+  say "[6/6] hooks + settings.json"
   mkdir -p "$BIN"
   cp "$HERE/hooks/ida-act" "$BIN/ida-act" && chmod +x "$BIN/ida-act"
   cp "$HERE/hooks/ida-attest" "$BIN/ida-attest" 2>/dev/null && chmod +x "$BIN/ida-attest" || true
   cp "$HERE/hooks/ida-land" "$BIN/ida-land" 2>/dev/null && chmod +x "$BIN/ida-land" || true
   cp "$HERE/hooks/ida-floor" "$BIN/ida-floor" 2>/dev/null && chmod +x "$BIN/ida-floor" || true
   [ -f "$GLADOS/axis.json" ] || echo '{"act_native": []}' > "$GLADOS/axis.json"
-  [ -f "$GLADOS/floor.txt" ] || printf '# floor: по строке на путь — файлы, чьи ТЕЛА инжектятся при старте сессии\n# (диспозиция-грани, gate-каталог). cores с class: disposition едут автоматом.\n' > "$GLADOS/floor.txt"
+  [ -f "$GLADOS/floor.txt" ] || printf '# floor: one path per line — files whose BODIES are injected at session start\n# (disposition facets, gate catalog). cores with class: disposition travel automatically.\n' > "$GLADOS/floor.txt"
   python3 - "$CLAUDE/settings.json" "$BIN" <<'PY'
 import json, os, sys, datetime
 S, BIN = sys.argv[1], sys.argv[2]
@@ -103,12 +103,12 @@ if os.path.exists(FLOOR) and not has("SessionStart", FLOOR):
         "hooks":[{"type":"command","command":FLOOR,"timeout":10}]})
 tmp = S + ".tmp"
 json.dump(cfg, open(tmp,"w",encoding="utf-8"), indent=2, ensure_ascii=False)
-json.load(open(tmp, encoding="utf-8"))  # валидация
+json.load(open(tmp, encoding="utf-8"))  # validation
 os.replace(tmp, S)
-print("  settings.json: хуки вписаны (валидно, бэкап рядом)")
+print("  settings.json: hooks written (valid, backup alongside)")
 PY
-  say "ГОТОВО. Перезапусти Claude Code (хуки грузятся при старте). self-test: правь файл без Read → нота M1."
-  say "Финальный тюн (после ~50 содержательных ходов): docs/TUNE.md — casebook-цикл трассировки ложных фиров."
+  say "DONE. Restart Claude Code (hooks load at start). self-test: edit a file without Read → M1 note."
+  say "Final tuning (after ~50 substantive turns): docs/TUNE.md — casebook cycle for tracing false fires."
 }
 
 case "${1:-}" in

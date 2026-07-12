@@ -1,25 +1,25 @@
 export const meta = {
   name: 'glados-install',
-  description: 'Инсталлятор одним воркфлоу: Sonnet парсит/обозревает логи и ищет паттерны → Opus полный свип + эмерж + сборка лекс-матрицы → сверка с ida-счётчиком и shadow-прогон фиров',
+  description: 'One-workflow installer: Sonnet parses/reviews logs and finds patterns → Opus full sweep + emerge + lexicon-matrix build → cross-check against the ida counter and shadow fire run',
   phases: [
-    { title: 'Overview', detail: 'Sonnet: слимы/fingerprint, корпус-обзор + held-out промпты', model: 'sonnet' },
-    { title: 'Patterns', detail: 'Sonnet ×2 последовательно: model-cores из tool-call, ситуация+лексика из прозы', model: 'sonnet' },
-    { title: 'Build', detail: 'Opus: полный свип, эмерж, запись emerge.json, bootstrap --finish (лекс-матрица)', model: 'opus' },
-    { title: 'Verify', detail: 'shadow-прогон held-out через живой хук + сверка fire-log счётчика + Opus-аудит течей' },
+    { title: 'Overview', detail: 'Sonnet: slims/fingerprint, corpus overview + held-out prompts', model: 'sonnet' },
+    { title: 'Patterns', detail: 'Sonnet ×2 sequentially: model-cores from tool-calls, situation + lexicon from prose', model: 'sonnet' },
+    { title: 'Build', detail: 'Opus: full sweep, emerge, write emerge.json, bootstrap --finish (lexicon matrix)', model: 'opus' },
+    { title: 'Verify', detail: 'shadow run of held-out through the live hook + fire-log counter check + Opus leak audit' },
   ],
 }
-// ВХОД (args): { kit: путь к glados-portable (default ~/glados-portable) }
-// ПРЕДУСЛОВИЕ: `sh bootstrap.sh` (фаза A) уже прогнана — slims.jsonl + fingerprint.json есть.
-// ПРОПОРЦИИ МОДЕЛЕЙ (осознанно): парсинг/обзор/классификация = Sonnet (механика, дёшево);
-// эмерж + тюн лекс-матрицы = Opus МИНИМУМ (синтез, качество ядер = качество всего харнеса);
-// сверка = Sonnet-механика (числа из скриптов) + Opus-аудит (semantic-течи).
+// INPUT (args): { kit: path to glados-portable (default ~/glados-portable) }
+// PRECONDITION: `sh bootstrap.sh` (phase A) already ran — slims.jsonl + fingerprint.json exist.
+// MODEL SPLIT (deliberate): parsing/review/classification = Sonnet (mechanical, cheap);
+// emerge + lexicon-matrix tuning = Opus MINIMUM (synthesis, core quality = quality of the whole harness);
+// cross-check = Sonnet mechanics (numbers from scripts) + Opus audit (semantic leaks).
 
 const KIT   = (args && args.kit) || '~/glados-portable'
 const SLIMS = KIT + '/slims.jsonl'
 const FP    = KIT + '/fingerprint.json'
 const G     = '~/.claude/glados'
 
-// ── схемы ──
+// ── schemas ──
 const OVERVIEW_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['sessions', 'domains', 'top_tools', 'prose_langs', 'held_out'],
@@ -29,7 +29,7 @@ const OVERVIEW_SCHEMA = {
     top_tools: { type: 'array', items: { type: 'string' } },
     prose_langs: { type: 'array', items: { type: 'string' } },
     held_out: { type: 'array', items: { type: 'string' }, minItems: 8, maxItems: 16,
-      description: 'verbatim промпты юзера из РАЗНЫХ сессий — резерв для shadow-сверки, в харвест НЕ отдаются' },
+      description: 'verbatim user prompts from DIFFERENT sessions — reserved for the shadow check, NOT handed to harvest' },
     notes: { type: 'string' },
   } }
 
@@ -60,7 +60,7 @@ const HARVEST_SCHEMA = {
       required: ['facet', 'anchor', 'native_words'],
       properties: {
         facet: { type: 'string' },
-        anchor: { type: 'string', description: 'verbatim фраза юзера-улика' },
+        anchor: { type: 'string', description: 'verbatim phrase from the user as evidence' },
         native_words: { type: 'array', items: { type: 'string' } },
       } } },
     lexicon: { type: 'array', items: {
@@ -74,11 +74,11 @@ const BUILD_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['cores_built', 'trigger_lines', 'dispositions', 'build_ok', 'build_log'],
   properties: {
-    cores_built: { type: 'array', items: { type: 'string' }, description: 'имена ситуация-ядер' },
+    cores_built: { type: 'array', items: { type: 'string' }, description: 'names of situation cores' },
     trigger_lines: { type: 'number' },
-    dispositions: { type: 'array', items: { type: 'string' }, description: 'грани, ушедшие в пол (class: disposition)' },
+    dispositions: { type: 'array', items: { type: 'string' }, description: 'facets pushed into the floor (class: disposition)' },
     build_ok: { type: 'boolean' },
-    build_log: { type: 'string', description: 'решающие строки вывода bootstrap --finish' },
+    build_log: { type: 'string', description: 'decisive lines of bootstrap --finish output' },
   } }
 
 const SVERKA_SCHEMA = {
@@ -90,8 +90,8 @@ const SVERKA_SCHEMA = {
     fire_rate: { type: 'number' },
     firelog_rows_before: { type: 'number' },
     firelog_rows_after: { type: 'number' },
-    counter_ok: { type: 'boolean', description: 'fire-log вырос ровно на число прогнанных промптов' },
-    floor_ok: { type: 'boolean', description: 'ida-floor отдаёт тела (или диспозиций нет — тоже ok)' },
+    counter_ok: { type: 'boolean', description: 'fire-log grew by exactly the number of prompts run' },
+    floor_ok: { type: 'boolean', description: 'ida-floor returns bodies (or there are no dispositions — also ok)' },
     per_prompt: { type: 'array', items: {
       type: 'object', additionalProperties: false,
       required: ['prompt', 'surfaced', 'spans'],
@@ -108,92 +108,92 @@ const AUDIT_SCHEMA = {
       type: 'object', additionalProperties: false,
       required: ['core', 'span', 'why'],
       properties: { core: { type: 'string' }, span: { type: 'string' },
-                    why: { type: 'string', description: 'почему это течь: слово-тема/слишком широкий regex/эхо' } } } },
+                    why: { type: 'string', description: 'why this is a leak: topic-word/too-broad regex/echo' } } } },
     tune_advice: { type: 'array', items: { type: 'string' }, maxItems: 6 },
   } }
 
-// ═══ ФАЗА 1: обзор корпуса (Sonnet — механика) ═══
+// ═══ PHASE 1: corpus overview (Sonnet — mechanical) ═══
 phase('Overview')
 const ov = await agent(
-  `Read ${FP} (частоты тулов) и просканируй ${SLIMS} (JSONL: поле tools[]=tool-call'ы, prose[]=слова юзера). ` +
-  `Верни обзор корпуса: sessions (число), domains (с чем работает), top_tools, prose_langs (языки прозы). ` +
-  `ОБЯЗАТЕЛЬНО held_out: 8-16 verbatim промптов юзера из РАЗНЫХ сессий и РАЗНЫХ тем — содержательные ` +
-  `(не «ок»/«дальше»), типичные для его речи. Это резерв shadow-сверки — они НЕ пойдут в харвест.`,
+  `Read ${FP} (tool frequencies) and scan ${SLIMS} (JSONL: field tools[]=tool-calls, prose[]=user words). ` +
+  `Return a corpus overview: sessions (number), domains (what it works with), top_tools, prose_langs (prose languages). ` +
+  `REQUIRED held_out: 8-16 verbatim user prompts from DIFFERENT sessions and DIFFERENT topics — substantive ones ` +
+  `(not "ok"/"next"), typical of how the user speaks. These are the shadow-check reserve — they will NOT go into harvest.`,
   { label: 'overview:corpus', phase: 'Overview', schema: OVERVIEW_SCHEMA, model: 'sonnet', effort: 'low' })
-if (!ov) throw new Error('overview не собрался — slims.jsonl есть? bootstrap фаза A прогнана?')
-log(`корпус: ${ov.sessions} сессий · домены: ${ov.domains.slice(0,5).join(', ')} · held-out: ${ov.held_out.length}`)
+if (!ov) throw new Error('overview did not assemble — does slims.jsonl exist? was bootstrap phase A run?')
+log(`corpus: ${ov.sessions} sessions · domains: ${ov.domains.slice(0,5).join(', ')} · held-out: ${ov.held_out.length}`)
 
-// ═══ ФАЗА 2: паттерн-ноги (Sonnet ×2, ПОСЛЕДОВАТЕЛЬНО — B видит A, идёт шире) ═══
+// ═══ PHASE 2: pattern legs (Sonnet ×2, SEQUENTIAL — B sees A, goes broader) ═══
 phase('Patterns')
 const A = await agent(
-  `Ты классификатор-A. Read ${FP}, просканируй ${SLIMS} (tools[]=упорядоченные tool-call'ы). ` +
-  `Обзор корпуса уже есть: домены ${JSON.stringify(ov.domains)}. ЗАДАЧА: из ПАТТЕРНОВ tool-call'ов ` +
-  `вывести model-cores — грани того, КАК юзер действует: повторяющиеся последовательности, циклы/ретраи, ` +
-  `edit-без-read, distinctive-комбо. klass: structural-pull (детектируемо в tool_input/response детерминированно) ` +
-  `vs disposition-push (привычка, в пол). tool_evidence = verbatim паттерн; gate = детект-условие. BROAD scope.`,
+  `You are classifier-A. Read ${FP}, scan ${SLIMS} (tools[]=ordered tool-calls). ` +
+  `The corpus overview already exists: domains ${JSON.stringify(ov.domains)}. TASK: from tool-call PATTERNS ` +
+  `derive model-cores — facets of HOW the user acts: repeated sequences, loops/retries, ` +
+  `edit-without-read, distinctive combos. klass: structural-pull (deterministically detectable in tool_input/response) ` +
+  `vs disposition-push (habit, into the floor). tool_evidence = verbatim pattern; gate = detection condition. BROAD scope.`,
   { label: 'patterns:A-tools', phase: 'Patterns', schema: MODELCORE_SCHEMA, model: 'sonnet' })
 const B = await agent(
-  `Ты классификатор-B. A уже нашёл model-cores: ${JSON.stringify((A && A.model_cores || []).map(c => c.signature))}. ` +
-  `Иди ШИРЕ и в ДРУГУЮ сторону: Read ${SLIMS}, парси prose[] (слова юзера). ` +
-  `⚠ Эти промпты НЕ трогай (held-out резерв сверки): ${JSON.stringify(ov.held_out.map(p => p.slice(0, 60)))}. ` +
-  `ЗАДАЧА: (1) situation_cores — грани того, КАК юзер ДУМАЕТ (что строит, чего боится, как фреймит), ` +
-  `каждая с verbatim-якорем из ЕГО прозы; (2) lexicon — его повторяющиеся НАТИВНЫЕ слова per ситуация ` +
-  `(recall цепляется к ним, не к абстракциям); (3) broader_model_cores — что A пропустил. НЕ дублируй A.`,
+  `You are classifier-B. A already found model-cores: ${JSON.stringify((A && A.model_cores || []).map(c => c.signature))}. ` +
+  `Go BROADER and in a DIFFERENT direction: Read ${SLIMS}, parse prose[] (user words). ` +
+  `⚠ Do NOT touch these prompts (held-out check reserve): ${JSON.stringify(ov.held_out.map(p => p.slice(0, 60)))}. ` +
+  `TASK: (1) situation_cores — facets of HOW the user THINKS (what he builds, what he fears, how he frames), ` +
+  `each with a verbatim anchor from HIS prose; (2) lexicon — his recurring NATIVE words per situation ` +
+  `(recall latches onto them, not onto abstractions); (3) broader_model_cores — what A missed. Do NOT duplicate A.`,
   { label: 'patterns:B-prose', phase: 'Patterns', schema: HARVEST_SCHEMA, model: 'sonnet' })
-if (!B) throw new Error('паттерн-нога B не вернулась')
-log(`A: ${(A && A.model_cores || []).length} model-cores · B: ${B.situation_cores.length} ситуация-ядер, ${B.lexicon.length} лексика-групп`)
+if (!B) throw new Error('pattern leg B did not return')
+log(`A: ${(A && A.model_cores || []).length} model-cores · B: ${B.situation_cores.length} situation cores, ${B.lexicon.length} lexicon groups`)
 
-// ═══ ФАЗА 3: полный свип + эмерж + сборка (Opus МИНИМУМ — качество ядер = качество харнеса) ═══
+// ═══ PHASE 3: full sweep + emerge + build (Opus MINIMUM — core quality = harness quality) ═══
 phase('Build')
 const build = await agent(
-  `Ты движок эмержа glados-харнеса (полный свип). Кандидаты от классификаторов:\n` +
-  `A (model-cores из tool-call): ${JSON.stringify(A)}\n` +
-  `B (ситуация+лексика из прозы): ${JSON.stringify(B)}\n` +
-  `Обзор: ${JSON.stringify({sessions: ov.sessions, domains: ov.domains, notes: ov.notes})}\n\n` +
-  `ШАГИ (делай сам, у тебя есть тулы):\n` +
-  `1. СВИП: Read ${SLIMS} сам — проверь кандидатов против сырья (якоря verbatim? лексика реально ` +
-  `частотна? грани не дублируются?). Кандидат без опоры в корпусе — выкинь.\n` +
-  `2. ЭМЕРЖ: синтезируй финал — 5-9 ситуация-ядер (id с 1, facet, anchor verbatim, native_words ` +
-  `ЕГО словами), lexicon-группы к ядрам, model_cores. Грань, применимая ≈каждый ход = ` +
-  `ДИСПОЗИЦИЯ: ей место в полу, НЕ в лексике (в emerge не клади её words в triggers; список таких ` +
-  `отдай в dispositions).\n` +
+  `You are the emerge engine of the glados harness (full sweep). Candidates from the classifiers:\n` +
+  `A (model-cores from tool-calls): ${JSON.stringify(A)}\n` +
+  `B (situation + lexicon from prose): ${JSON.stringify(B)}\n` +
+  `Overview: ${JSON.stringify({sessions: ov.sessions, domains: ov.domains, notes: ov.notes})}\n\n` +
+  `STEPS (do them yourself, you have the tools):\n` +
+  `1. SWEEP: Read ${SLIMS} yourself — check candidates against the raw material (are anchors verbatim? is the lexicon actually ` +
+  `frequent? are facets non-duplicating?). A candidate with no support in the corpus — drop it.\n` +
+  `2. EMERGE: synthesize the final set — 5-9 situation cores (id from 1, facet, verbatim anchor, native_words ` +
+  `in HIS words), lexicon groups tied to cores, model_cores. A facet applicable to ≈every turn is a ` +
+  `DISPOSITION: its place is in the floor, NOT in the lexicon (in emerge do not put its words in triggers; hand the ` +
+  `list of such facets in dispositions).\n` +
   `3. Write ${KIT}/emerge.json: {"situation_cores": [...], "model_cores": [...], "lexicon": [...]}.\n` +
-  `4. Bash: cd ${KIT} && sh bootstrap.sh --finish (соберёт cores/, core-triggers.txt = тюн-датабейс ` +
-  `лекс-матрицы, эмбед-индекс, хуки в settings.json).\n` +
-  `5. Диспозициям (если есть) проставь class: disposition во frontmatter их файлов в ` +
-  `~/.claude/overlays/cores/ — их подхватит ida-floor.\n` +
-  `6. Верни отчёт: cores_built, trigger_lines (wc -l ${G}/core-triggers.txt), dispositions, build_ok, build_log.`,
+  `4. Bash: cd ${KIT} && sh bootstrap.sh --finish (builds cores/, core-triggers.txt = the tuning database ` +
+  `of the lexicon matrix, the embed index, the hooks in settings.json).\n` +
+  `5. For dispositions (if any) set class: disposition in the frontmatter of their files in ` +
+  `~/.claude/overlays/cores/ — ida-floor will pick them up.\n` +
+  `6. Return a report: cores_built, trigger_lines (wc -l ${G}/core-triggers.txt), dispositions, build_ok, build_log.`,
   { label: 'build:emerge+matrix', phase: 'Build', schema: BUILD_SCHEMA, model: 'opus', effort: 'high' })
-if (!build || !build.build_ok) throw new Error('сборка не прошла: ' + JSON.stringify(build && build.build_log))
-log(`собрано: ${build.cores_built.length} ядер · ${build.trigger_lines} строк матрицы · пол: ${build.dispositions.join(', ') || '—'}`)
+if (!build || !build.build_ok) throw new Error('build failed: ' + JSON.stringify(build && build.build_log))
+log(`built: ${build.cores_built.length} cores · ${build.trigger_lines} matrix lines · floor: ${build.dispositions.join(', ') || '—'}`)
 
-// ═══ ФАЗА 4: СВЕРКА — shadow-прогон held-out через ЖИВОЙ хук + ida-счётчик (Sonnet-механика) ═══
+// ═══ PHASE 4: CROSS-CHECK — shadow run of held-out through the LIVE hook + ida counter (Sonnet mechanics) ═══
 phase('Verify')
 const sverka = await agent(
-  `Shadow-сверка свежесобранного glados-харнеса. Held-out промпты (харвест их НЕ видел):\n` +
+  `Shadow check of the freshly built glados harness. Held-out prompts (harvest never saw them):\n` +
   `${JSON.stringify(ov.held_out)}\n` +
-  `ШАГИ (механика, всё через Bash):\n` +
-  `1. firelog_rows_before = wc -l ${G}/fire-log.jsonl (0 если нет файла).\n` +
-  `2. Каждый промпт прогони через ЖИВОЙ хук: echo '{"prompt":"...","session_id":"install-verify"}' | ` +
-  `python3 ~/.claude/bin/ida-attest — собери per_prompt: surfaced-ядра из <ida-attest>-вывода и спаны.\n` +
-  `3. firelog_rows_after = wc -l снова. counter_ok = (after - before == число прогнанных промптов ` +
-  `длиной ≥3 слов) — это сверка ida-СЧЁТЧИКА: каждый содержательный ход обязан оставить строку.\n` +
-  `4. floor_ok: sh ~/.claude/bin/ida-floor выводит <floor-bodies> с телами, ЛИБО диспозиций нет вовсе.\n` +
-  `5. fire_rate = fired_n/held_out_n (fired = surfaced непуст). Числа считай, не оценивай.`,
+  `STEPS (mechanical, all via Bash):\n` +
+  `1. firelog_rows_before = wc -l ${G}/fire-log.jsonl (0 if the file is missing).\n` +
+  `2. Run each prompt through the LIVE hook: echo '{"prompt":"...","session_id":"install-verify"}' | ` +
+  `python3 ~/.claude/bin/ida-attest — collect per_prompt: surfaced cores from the <ida-attest> output and spans.\n` +
+  `3. firelog_rows_after = wc -l again. counter_ok = (after - before == number of prompts run ` +
+  `with length ≥3 words) — this is the ida COUNTER check: every substantive turn must leave a row.\n` +
+  `4. floor_ok: sh ~/.claude/bin/ida-floor outputs <floor-bodies> with bodies, OR there are no dispositions at all.\n` +
+  `5. fire_rate = fired_n/held_out_n (fired = surfaced non-empty). Count the numbers, do not estimate.`,
   { label: 'verify:shadow+counter', phase: 'Verify', schema: SVERKA_SCHEMA, model: 'sonnet' })
-if (!sverka) throw new Error('сверка не вернулась')
-log(`shadow: fire-rate ${(sverka.fire_rate * 100).toFixed(0)}% (${sverka.fired_n}/${sverka.held_out_n}) · счётчик ${sverka.counter_ok ? 'OK' : 'ТЕЧЬ'} · пол ${sverka.floor_ok ? 'OK' : 'ПУСТ'}`)
+if (!sverka) throw new Error('cross-check did not return')
+log(`shadow: fire-rate ${(sverka.fire_rate * 100).toFixed(0)}% (${sverka.fired_n}/${sverka.held_out_n}) · counter ${sverka.counter_ok ? 'OK' : 'LEAK'} · floor ${sverka.floor_ok ? 'OK' : 'EMPTY'}`)
 
-// ═══ ФАЗА 4b: аудит течей (Opus — semantic-вердикт по фирам) ═══
+// ═══ PHASE 4b: leak audit (Opus — semantic verdict on fires) ═══
 const audit = await agent(
-  `Ты аудитор свежего glados-харнеса. Результат shadow-прогона held-out промптов:\n` +
+  `You are the auditor of the fresh glados harness. Result of the held-out shadow run:\n` +
   `${JSON.stringify(sverka.per_prompt)}\n` +
-  `Ядра: ${JSON.stringify(build.cores_built)}. Read ~/.claude/overlays/cores/*.md и ${G}/core-triggers.txt.\n` +
-  `ЗАДАЧА: найди ТЕЧИ — фиры, где спан = слово-тема/слишком широкий regex (ядро зажглось, но промпт ` +
-  `не про эту грань), и НЕДОЛЁТЫ — промпт явно про грань ядра, а фира нет. Типовой ложный мод: ` +
-  `общеупотребимое слово в триггере фирит на всё. verdict: ok / ok-with-notes / rebuild (rebuild = ` +
-  `матрица шумит на >половине held-out). tune_advice: конкретные правки триггеров (≤6), но НЕ применяй ` +
-  `их — правка лексики = решение владельца (docs/TUNE.md).`,
+  `Cores: ${JSON.stringify(build.cores_built)}. Read ~/.claude/overlays/cores/*.md and ${G}/core-triggers.txt.\n` +
+  `TASK: find LEAKS — fires where the span = topic-word/too-broad regex (the core lit up, but the prompt ` +
+  `is not about that facet), and MISSES — the prompt is clearly about the core's facet, but there is no fire. Typical false mode: ` +
+  `a common word in the trigger fires on everything. verdict: ok / ok-with-notes / rebuild (rebuild = ` +
+  `the matrix is noisy on >half of held-out). tune_advice: concrete trigger edits (≤6), but do NOT apply ` +
+  `them — editing the lexicon is the owner's decision (docs/TUNE.md).`,
   { label: 'verify:audit-leaks', phase: 'Verify', schema: AUDIT_SCHEMA, model: 'opus' })
 
 return {
@@ -201,7 +201,7 @@ return {
   build,
   sverka: { fire_rate: sverka.fire_rate, counter_ok: sverka.counter_ok, floor_ok: sverka.floor_ok },
   audit,
-  for_engine: 'Перескажи владельцу: какие ядра собраны (пусть вычеркнет чужое), fire-rate на held-out, ' +
-              'найденные течи (кандидаты анти-триггеров — в датасет, не в панику), verdict аудита. ' +
-              'Перезапуск Claude Code для загрузки хуков. Дальше жить 1-2 недели → docs/TUNE.md.',
+  for_engine: 'Report to the owner: which cores were built (let them strike out anything that is not theirs), fire-rate on held-out, ' +
+              'the leaks found (anti-trigger candidates — into the dataset, not into panic), the audit verdict. ' +
+              'Restart Claude Code to load the hooks. Then live with it for 1-2 weeks → docs/TUNE.md.',
 }

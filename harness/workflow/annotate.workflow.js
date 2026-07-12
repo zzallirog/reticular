@@ -1,16 +1,16 @@
 export const meta = {
   name: 'glados-annotate',
-  description: 'LLM-судья casebook: verdict genuine/echo/partial per (кейс, ядро) — трассировка ложных срабатываний лексики',
+  description: 'LLM judge for the casebook: verdict genuine/echo/partial per (case, core) — tracing false lexicon fires',
   phases: [
-    { title: 'Judge', detail: 'веер судей по батчам case-book' },
+    { title: 'Judge', detail: 'fan-out of judges over case-book batches' },
   ],
 }
-// ВХОД (args): { casebook: путь к case-book.jsonl, cores_dir: путь к overlays/cores, batch?: 16 }
-// ВЫХОД: { annos: [...] } — движок пишет annos.json и гонит tools/annotate_merge.py.
+// INPUT (args): { casebook: path to case-book.jsonl, cores_dir: path to overlays/cores, batch?: 16 }
+// OUTPUT: { annos: [...] } — the engine writes annos.json and runs tools/annotate_merge.py.
 //
-// ЗАЧЕМ судья, а не механика: echo (слово-тема, не акт) дешёвой лексикой НЕ отделим —
-// замерено на 651 вердикте (meta-flag отвергнут: echo 52% vs 51%). Семантический вердикт =
-// работа LLM. Судья, не human-label — anno_src едет рядом, различай пост-хок.
+// WHY a judge, not a mechanism: echo (topic-word, not act) is NOT separable with cheap lexicon —
+// measured on 651 verdicts (meta-flag rejected: echo 52% vs 51%). A semantic verdict is
+// LLM work. Judge, not human-label — anno_src travels alongside, distinguish post-hoc.
 
 const CB    = (args && args.casebook)  || '~/.claude/glados/case-book.jsonl'
 const CORES = (args && args.cores_dir) || '~/.claude/overlays/cores'
@@ -26,19 +26,19 @@ const ANNO_SCHEMA = {
       properties: {
         id: { type: 'string' },
         verdicts: { type: 'object', additionalProperties: { type: 'string', enum: ['genuine', 'echo', 'partial'] },
-                    description: 'per-core: genuine=ядро РЕАЛЬНО действовало в ответе; echo=слово-тема/эхо лексикона, акта нет; partial=частично' },
-        case: { type: 'string', description: 'одно предложение: что за ход был' },
-        reflection: { type: 'string', description: 'почему такой вердикт — чем witness-спаны служат/не служат акту' },
-        drop: { type: 'boolean', description: 'кейс мусорный (обрывок/мета-тест), выкинуть' },
+                    description: 'per-core: genuine=core ACTUALLY acted in the response; echo=topic-word/lexicon echo, no act; partial=partially' },
+        case: { type: 'string', description: 'one sentence: what the move was' },
+        reflection: { type: 'string', description: 'why this verdict — how the witness spans serve/do not serve the act' },
+        drop: { type: 'boolean', description: 'junk case (fragment/meta-test), discard' },
       } } },
   } }
 
-// батчи режет ДВИЖОК перед запуском (или сам воркфлоу — счётчик кейсов заранее неизвестен,
-// поэтому один scout-агент считает и возвращает срезы id)
+// batches are cut by the ENGINE before the run (or by the workflow itself — the case count is
+// not known ahead of time, so one scout agent counts and returns the id slices)
 phase('Judge')
 
 const plan = await agent(
-  `Read ${CB} (JSONL). Верни ТОЛЬКО JSON: {"total": N, "ids": [все id по порядку]}. Ничего не суди.`,
+  `Read ${CB} (JSONL). Return ONLY JSON: {"total": N, "ids": [all ids in order]}. Do not judge anything.`,
   { label: 'scout:count', phase: 'Judge',
     schema: { type: 'object', additionalProperties: false, required: ['total', 'ids'],
               properties: { total: { type: 'number' }, ids: { type: 'array', items: { type: 'string' } } } } })
@@ -46,29 +46,29 @@ const plan = await agent(
 const ids = (plan && plan.ids) || []
 const slices = []
 for (let i = 0; i < ids.length; i += BATCH) slices.push(ids.slice(i, i + BATCH))
-log(`кейсов: ${ids.length}, батчей: ${slices.length} × ${BATCH}`)
+log(`cases: ${ids.length}, batches: ${slices.length} × ${BATCH}`)
 
 const results = await parallel(slices.map((slice, bi) => () =>
   agent(
-    `Ты судья casebook (батч ${bi + 1}/${slices.length}). Сначала Read ${CORES}/*.md — пойми, ` +
-    `ЧТО каждое ядро означает (это грани мышления владельца, ядро = дисциплина/линза). ` +
-    `Потом Read ${CB} и возьми ТОЛЬКО кейсы с id из списка:\n${JSON.stringify(slice)}\n` +
-    `Для КАЖДОГО кейса, для КАЖДОГО ядра из acted_on дай вердикт:\n` +
-    `- genuine: ответ РЕАЛЬНО исполнял дисциплину ядра (акт, не слова);\n` +
-    `- echo: witness-спаны = слово-тема (разговор ПРО механизм/термин, цитата, тест-фраза) — акта нет;\n` +
-    `- partial: дисциплина задета, но не исполнена.\n` +
-    `Смотри на witness (спаны, зажёгшие лексику в ответе) и wit_prompt — они и есть улика. ` +
-    `Типовой ложный мод: мета-разговор про сам харнес зажигает его же лексику. ` +
-    `reflection: почему вердикт, коротко. drop=true для мусорных кейсов.`,
+    `You are a casebook judge (batch ${bi + 1}/${slices.length}). First Read ${CORES}/*.md — understand ` +
+    `WHAT each core means (these are facets of the owner's thinking, a core = a discipline/lens). ` +
+    `Then Read ${CB} and take ONLY the cases whose id is in the list:\n${JSON.stringify(slice)}\n` +
+    `For EACH case, for EACH core in acted_on give a verdict:\n` +
+    `- genuine: the response ACTUALLY executed the core's discipline (an act, not words);\n` +
+    `- echo: witness spans = topic-word (talk ABOUT the mechanism/term, a quote, a test phrase) — no act;\n` +
+    `- partial: the discipline was touched but not executed.\n` +
+    `Look at witness (the spans that fired the lexicon in the response) and wit_prompt — they are the evidence. ` +
+    `Typical false mode: meta-talk about the harness itself fires its own lexicon. ` +
+    `reflection: why this verdict, briefly. drop=true for junk cases.`,
     { label: `judge:batch${bi + 1}`, phase: 'Judge', schema: ANNO_SCHEMA })
 ))
 
 const annos = results.filter(Boolean).flatMap(r => r.annos || [])
-log(`вердиктов собрано: ${annos.length}/${ids.length}`)
+log(`verdicts collected: ${annos.length}/${ids.length}`)
 
 return {
   annos,
-  for_engine: 'запиши {"annos": [...]} в annos.json и прогони: ' +
-              'python3 tools/annotate_merge.py annos.json --src judge-<дата>; ' +
-              'затем tools/casebook_harvest.py + tools/casebook_sidecases.py (кандидаты тюна)',
+  for_engine: 'write {"annos": [...]} to annos.json and run: ' +
+              'python3 tools/annotate_merge.py annos.json --src judge-<date>; ' +
+              'then tools/casebook_harvest.py + tools/casebook_sidecases.py (tuning candidates)',
 }

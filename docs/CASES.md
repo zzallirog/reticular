@@ -1,15 +1,15 @@
 # Cases — what a hook-level attention layer actually catches
 
-Four incidents from live use. Names, paths and domains are retold on the
+Seven incidents from live use. Names, paths and domains are retold on the
 synthetic demo corpus (`demo/`); the mechanics and the numbers are real.
 
 ## 1 · Drift visible on turn one
 
-**The pain that started this repo** — verbatim, from the colleague whose
-request produced the portable kit: *"I set a task. If it's looking the wrong
-way, I want to see it immediately — not five messages later, with legacy
-already built on the oversight."* You set a task; the agent quietly aims at
-the wrong thing; unwinding later costs more than the task did.
+**The complaint that started this repo**, in the words it came in: *"I set a
+task. If it's looking the wrong way, I want to see it immediately — not five
+messages later, with legacy already built on the oversight."* You set a task;
+the agent quietly aims at the wrong thing; unwinding later costs more than the
+task did.
 
 With the layer on, the scope-guard core fires **on the first turn**: the
 trigger words are in the prompt, the ~50-token pointer lands next to the task,
@@ -22,15 +22,15 @@ arrives at the only position the model reliably attends to — **now**.
 
 ## 2 · The stale premise, caught by acting (not by reading docs)
 
-The owner's own config asserted a fact about the environment (which shell the
-tool runs). The fact was stale. No amount of re-reading the config could catch
-it — the config was the *source* of the error.
+An operator's own config asserted a fact about the environment (which shell
+the tool runs). The fact was stale. No amount of re-reading the config could
+catch it — the config was the *source* of the error.
 
 The action-side hook (`ida-act`) parses tool-calls deterministically. On the
 first live day it fired on a command that *worked* — which is exactly what
 exposed the premise: the mode's rule and reality disagreed, someone had to be
 wrong, and it was the config. Same day, same mechanism, three more bugs in the
-hook's own logic surfaced by its own fires — including:
+hook's own logic surfaced by its own fires. One of them:
 
 ## 3 · Wrong surface: the error-detector that read content
 
@@ -79,7 +79,7 @@ live in the session-start floor instead of the matrix. Tune the lexicon until
 the global echo number is pretty, and the layer stops firing exactly where it
 was earned.
 
-Had the owner been more trusting, one agreeable "sure, let's clean that up"
+Had the operator been more trusting, one agreeable "sure, let's clean that up"
 would have shipped the damage. That incident is why the tune loop now has a
 **gatekeeper**: `tools/rebalance_check.py` runs before any lexicon surgery and
 answers with counted numbers — did per-core proportions actually drift beyond
